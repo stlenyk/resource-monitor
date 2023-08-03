@@ -1,7 +1,7 @@
-use leptos::leptos_dom::ev::{SubmitEvent};
+use std::{collections::VecDeque, time::Duration, vec};
+
 use leptos::*;
 use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -16,61 +16,142 @@ struct GreetArgs<'a> {
 }
 
 #[component]
-pub fn App(cx: Scope) -> impl IntoView {
-    let (name, set_name) = create_signal(cx, String::new());
-    let (greet_msg, set_greet_msg) = create_signal(cx, String::new());
+/// NB: assumes that the number of cpus doesn't change. May panic otherwise.
+fn PlotCpu(
+    cx: Scope,
+    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    max_history: usize,
+    max_time: Duration,
+) -> impl IntoView {
+    let id = "my-div-id";
 
-    let update_name = move |ev| {
-        let v = event_target_value(&ev);
-        set_name.set(v);
-    };
+    create_effect(cx, move |_| {
+        let mut plot = plotly::Plot::new();
 
-    let greet = move |ev: SubmitEvent| {
-        ev.prevent_default();
-        spawn_local(async move {
-            if name.get().is_empty() {
-                return;
+        let config = plotly::configuration::Configuration::new().static_plot(true);
+        plot.set_configuration(config);
+
+        let title =
+            plotly::common::Title::new(&format!("history len: {}", sys_util_history.get().len()));
+
+        let black = plotly::color::Rgb::new(0, 0, 0);
+        let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
+        let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
+        let y_axis = plotly::layout::Axis::new()
+            .range(vec![0, 100])
+            .tick_values(y_ticks)
+            .tick_text(y_ticks_text)
+            .side(plotly::common::AxisSide::Right)
+            .line_color(black)
+            .mirror(true);
+        let x_axis = plotly::layout::Axis::new()
+            .range(vec![0, max_history - 1])
+            .tick_values(vec![0.0])
+            .tick_text(vec![format!("{} s", max_time.as_secs())])
+            .line_color(black)
+            .mirror(true);
+        let _transparent = plotly::color::Rgba::new(0, 0, 0, 0.0);
+        let layout = plotly::layout::Layout::new()
+            // .paper_background_color(transparent)
+            .auto_size(true)
+            .title(title)
+            .y_axis(y_axis)
+            .x_axis(x_axis);
+        plot.set_layout(layout);
+
+        let cpu_history = sys_util_history
+            .get()
+            .iter()
+            .map(|util| util.cpus.clone())
+            .collect::<Vec<_>>();
+
+        if let Some(history_point) = cpu_history.get(0) {
+            let cpu_count = history_point.len();
+            let mut traces: Vec<Vec<f32>> = vec![Vec::new(); cpu_count];
+
+            for history_point in &cpu_history {
+                for (id, &cpu) in history_point.iter().enumerate() {
+                    traces[id].push(cpu / cpu_count as f32);
+                }
             }
+            let lower_bound = (max_history - cpu_history.len()).max(0);
+            let x = (lower_bound..max_history).collect::<Vec<_>>();
+            let stack_group = "stack_group";
+            for y in traces {
+                let trace = plotly::Scatter::new(x.clone(), y)
+                    .stack_group(stack_group)
+                    .show_legend(false);
+                plot.add_trace(trace);
+            }
+        }
+        spawn_local(async move {
+            plotly::bindings::react(id, &plot).await;
+        });
+    });
 
-            let args = to_value(&GreetArgs { name: &name.get() }).unwrap();
-            // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-            let new_msg = invoke("greet", args).await.as_string().unwrap();
-            set_greet_msg.set(new_msg);
+    view! {cx,
+        <div id={id}></div>
+    }
+}
+
+use crate::send_types::*;
+
+#[component]
+fn PlotCpuMini(cx: Scope) -> impl IntoView {
+    view! {cx,
+        "CPUMini placeholder"
+    }
+}
+
+#[component]
+fn PlotMemMini(cx: Scope) -> impl IntoView {
+    view! {cx,
+        "MemoryMini placeholder"
+    }
+}
+
+#[component]
+fn SidePanel(cx: Scope) -> impl IntoView {
+    view! {cx,
+        <PlotCpuMini/>
+        <br/>
+        <PlotMemMini/>
+    }
+}
+
+#[component]
+fn SysInfo(cx: Scope) -> impl IntoView {
+    let update_interval = Duration::from_secs(1);
+    let max_history_time = Duration::from_secs(60);
+    let max_history = (max_history_time.as_millis() / update_interval.as_millis()) as usize;
+    let (sys_util, set_sys_util) = create_signal(cx, VecDeque::with_capacity(max_history));
+
+    let update_sys_util = move || {
+        spawn_local(async move {
+            let values = invoke("get_stats", JsValue::NULL).await;
+            let values = serde_wasm_bindgen::from_value(values).unwrap();
+            let mut history = sys_util.get();
+            history.push_back(values);
+            if history.len() > max_history {
+                history.pop_front();
+            }
+            set_sys_util.set(history);
         });
     };
 
+    set_interval(update_sys_util, update_interval);
+
+    view! { cx,
+        <SidePanel/>
+        <PlotCpu sys_util_history=sys_util max_history=max_history max_time=max_history_time/>
+    }
+}
+
+#[component]
+pub fn App(cx: Scope) -> impl IntoView {
     view! { cx,
         <main class="container">
-            <div class="row">
-                <a href="https://tauri.app" target="_blank">
-                    <img src="public/tauri.svg" class="logo tauri" alt="Tauri logo"/>
-                </a>
-                <a href="https://docs.rs/leptos/" target="_blank">
-                    <img src="public/leptos.svg" class="logo leptos" alt="Leptos logo"/>
-                </a>
-            </div>
-
-            <p>"Click on the Tauri and Leptos logos to learn more."</p>
-
-            <p>
-                "Recommended IDE setup: "
-                <a href="https://code.visualstudio.com/" target="_blank">"VS Code"</a>
-                " + "
-                <a href="https://github.com/tauri-apps/tauri-vscode" target="_blank">"Tauri"</a>
-                " + "
-                <a href="https://github.com/rust-lang/rust-analyzer" target="_blank">"rust-analyzer"</a>
-            </p>
-
-            <form class="row" on:submit=greet>
-                <input
-                    id="greet-input"
-                    placeholder="Enter a name..."
-                    on:input=update_name
-                />
-                <button type="submit">"Greet"</button>
-            </form>
-
-            <p><b>{ move || greet_msg.get() }</b></p>
+            <SysInfo/>
         </main>
     }
 }
