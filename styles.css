@@ -1,4 +1,19 @@
-.logo.leptos:hover {
+.left {
+  float: left;
+  width: 200px;
+  overflow: scroll;
+  max-height: 800px;
+}
+
+.right {
+  margin-left: 200px;
+}
+
+button {
+  width: 100%;
+}
+
+/* .logo.leptos:hover {
   filter: drop-shadow(0 0 2em #a82e20);
 }
 
@@ -112,4 +127,4 @@ button {
   button:active {
     background-color: #0f0f0f69;
   }
-}
+} */
