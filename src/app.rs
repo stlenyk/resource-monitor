@@ -187,6 +187,7 @@ fn PlotGpusMini(
     cx: Scope,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
+    main_view: WriteSignal<MainView>,
 ) -> impl IntoView {
     // Why does compilation fail with this?
     // let div_id = format!("side-gpu-{}", gpu_id);
@@ -228,7 +229,10 @@ fn PlotGpusMini(
                         react(&format!("side-gpu-{}", gpu_id), &plot).await;
                     });
                 });
-                view! {cx,<button><div id=format!("side-gpu-{}", gpu_id)></div></button>}
+                view! {cx,
+                    <button on:click=move |_| {main_view.set(MainView::Gpu(gpu_id))} >
+                        <div id=format!("side-gpu-{}", gpu_id)></div>
+                    </button>}
             }
         />
     }
@@ -252,7 +256,7 @@ fn SidePanel(
                 <PlotMemMini sys_util_history=sys_util_history max_history=max_history/>
             </button>
 
-            <PlotGpusMini sys_util_history=sys_util_history max_history=max_history/>
+            <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
 
             // <img src="public/rzulta.png" alt="wrong path" style="width:100%; height:auto"/>
         </div>
@@ -262,7 +266,7 @@ fn SidePanel(
 #[allow(unused)]
 fn print_bytes(value: u64) -> String {
     let mut value = value as f32;
-    let suffixes = ["KB", "MB", "GB", "TB"];
+    let suffixes = ["B", "KiB", "MiB", "GiB", "TiB"];
     let base = 1024.0;
     let mut pow = 0;
     while value > base {
@@ -330,8 +334,51 @@ fn MainPanel(
                     .get()
                     .get(0)
                     .map_or(0, |sys_util| sys_util.mem_max);
+                let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
+                let y_ticks_values: Vec<_> =
+                    y_ticks.iter().map(|y| y * mem_max as f64 / 100.0).collect();
+                let y_ticks_text = y_ticks_values
+                    .iter()
+                    .map(|y| print_bytes(*y as u64))
+                    .collect();
                 let y_axis = Axis::new()
                     .range(vec![0, mem_max])
+                    .tick_values(y_ticks_values)
+                    .tick_text(y_ticks_text)
+                    .side(AxisSide::Right)
+                    .line_color(black)
+                    .mirror(true);
+                let x_axis = Axis::new()
+                    .range(vec![0, max_history - 1])
+                    .tick_values(vec![0.0])
+                    .tick_text(vec![format!("{} s", max_history_time.as_secs())])
+                    .line_color(black)
+                    .mirror(true);
+                let layout = plot
+                    .layout()
+                    .clone()
+                    .title(title)
+                    .y_axis(y_axis)
+                    .x_axis(x_axis);
+                plot.set_layout(layout);
+
+                spawn_local(async move {
+                    react(div_id, &plot).await;
+                });
+            }
+
+            MainView::Gpu(gpu_id) => {
+                let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
+
+                let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
+
+                let black = Rgb::new(0, 0, 0);
+                let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
+                let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
+                let y_axis = Axis::new()
+                    .range(vec![0, 100])
+                    .tick_values(y_ticks)
+                    .tick_text(y_ticks_text)
                     .side(AxisSide::Right)
                     .line_color(black)
                     .mirror(true);
@@ -365,6 +412,7 @@ fn MainPanel(
 enum MainView {
     Cpu,
     Mem,
+    Gpu(usize),
 }
 
 #[component]
@@ -397,8 +445,9 @@ pub fn App(cx: Scope) -> impl IntoView {
             <div>
                 <p>"Main view: " {move ||
                     match main_view.get() {
-                        MainView::Cpu => "cpu",
-                        MainView::Mem => "mem"
+                        MainView::Cpu => "cpu".to_owned(),
+                        MainView::Mem => "mem".to_owned(),
+                        MainView::Gpu(gpu_id) => format!("gpu{}", gpu_id)
                     }
                 }</p>
                 <SidePanel main_view=set_main_view sys_util_history=sys_util_history max_history=max_history/>
