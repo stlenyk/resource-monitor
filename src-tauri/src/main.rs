@@ -3,16 +3,16 @@
 
 #[path = "../../src/send_types.rs"]
 mod send_types;
-use send_types::{CpuCore, SystemInfo, SystemUtilization};
+use send_types::{CpuCore, Gpu, SystemInfo, SystemUtilization};
 
 use std::{
     sync::{Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
-use nvml_wrapper::Nvml;
+use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
 use raw_cpuid::CpuId;
-use sysinfo::{CpuExt, System, SystemExt};
+use sysinfo::{CpuExt, CpuRefreshKind, System, SystemExt};
 
 struct SystemMonitor {
     nvml: Option<Nvml>,
@@ -73,6 +73,8 @@ impl SystemMonitor {
 
     fn get_stats(&mut self) -> SystemUtilization {
         self.sys.refresh_all();
+        self.sys
+            .refresh_cpu_specifics(CpuRefreshKind::new().with_frequency());
         let cpus = self
             .sys
             .cpus()
@@ -88,17 +90,28 @@ impl SystemMonitor {
         let up_time = Duration::from_secs(self.sys.uptime());
 
         let gpus = if let Some(nvml) = &self.nvml {
-            let mut gpus_usage = Vec::new();
+            let mut gpus_util = Vec::new();
             let device_count = nvml.device_count().unwrap_or(0);
             for gpu_idx in 0..device_count {
-                let util = if let Ok(gpu) = nvml.device_by_index(gpu_idx) {
-                    gpu.utilization_rates().map_or(0, |util| util.gpu)
+                let (usage, mem, max_mem, temp) = if let Ok(gpu) = nvml.device_by_index(gpu_idx) {
+                    let (util, mem) = gpu
+                        .utilization_rates()
+                        .map_or((0, 0), |util| (util.gpu, util.memory));
+                    let temp = gpu.temperature(TemperatureSensor::Gpu).unwrap_or(0);
+                    let max_mem = gpu.memory_info().map_or(0, |mem_info| mem_info.total);
+                    (util, mem, max_mem, temp)
                 } else {
-                    0
+                    (0, 0, 0, 0)
                 };
-                gpus_usage.push(util);
+                let gpu_util = Gpu {
+                    usage,
+                    mem,
+                    max_mem,
+                    temp,
+                };
+                gpus_util.push(gpu_util);
             }
-            gpus_usage
+            gpus_util
         } else {
             vec![]
         };

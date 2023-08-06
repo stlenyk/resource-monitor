@@ -1,12 +1,26 @@
-.left {
+.leftpanel {
   float: left;
   width: 200px;
   overflow: scroll;
   max-height: 800px;
 }
 
-.right {
+.rightpanel {
   margin-left: 200px;
+}
+
+.leftmini {
+  float: left;
+  height: 80px;
+  width: 100px;
+}
+
+.rightmini {
+  text-align: left;
+}
+
+.rightminititle {
+  font-size: 16px;
 }
 
 button {

@@ -7,7 +7,7 @@ pub struct SystemUtilization {
     pub cpus: Vec<CpuCore>,
     pub mem: u64,
     pub mem_max: u64,
-    pub gpus: Vec<u32>,
+    pub gpus: Vec<Gpu>,
     pub up_time: Duration,
     pub processes: u32,
 }
@@ -16,6 +16,14 @@ pub struct SystemUtilization {
 pub struct CpuCore {
     pub usage: f32,
     pub freq: u64,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+pub struct Gpu {
+    pub usage: u32,
+    pub mem: u32,
+    pub max_mem: u64,
+    pub temp: u32,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]

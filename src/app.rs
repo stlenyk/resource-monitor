@@ -106,7 +106,7 @@ fn plot_gpu(
 ) -> Plot {
     let plot_values = sys_util_history
         .iter()
-        .map(|util| util.gpus[gpu_id])
+        .map(|util| util.gpus[gpu_id].usage)
         .collect();
     let color = Rgb::new(120, 149, 203);
     plot_generic(plot_values, max_history, color)
@@ -130,7 +130,6 @@ fn PlotCpuMini(
             .layout()
             .clone()
             .margin(margin)
-            .height(100)
             .y_axis(y_axis)
             .x_axis(x_axis);
         plot.set_layout(layout);
@@ -141,7 +140,7 @@ fn PlotCpuMini(
     });
 
     view! {cx,
-        <div id={div_id}></div>
+        <div class="leftmini" id={div_id}></div>
     }
 }
 
@@ -167,7 +166,6 @@ fn PlotMemMini(
             .layout()
             .clone()
             .margin(margin)
-            .height(100)
             .y_axis(y_axis)
             .x_axis(x_axis);
         plot.set_layout(layout);
@@ -178,7 +176,7 @@ fn PlotMemMini(
     });
 
     view! {cx,
-        <div id={div_id}></div>
+        <div class="leftmini" id={div_id}></div>
     }
 }
 
@@ -205,7 +203,6 @@ fn PlotGpusMini(
             key=|gpu_id| *gpu_id
             view=move |cx, gpu_id| {
                 create_effect(cx, move |_| {
-                    // let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
                     let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
                     let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -220,7 +217,6 @@ fn PlotGpusMini(
                         .layout()
                         .clone()
                         .margin(margin)
-                        .height(100)
                         .y_axis(y_axis)
                         .x_axis(x_axis);
                     plot.set_layout(layout);
@@ -229,10 +225,25 @@ fn PlotGpusMini(
                         react(&format!("side-gpu-{}", gpu_id), &plot).await;
                     });
                 });
+
+                let gpu_descr = move || {
+                    if let Some(last) = sys_util_history.get().back() {
+                        let gpu = last.gpus[gpu_id].clone();
+                        format!("{}% ({} °C)", gpu.usage, gpu.temp)
+                    } else {
+                        String::new()
+                    }
+                };
                 view! {cx,
                     <button on:click=move |_| {main_view.set(MainView::Gpu(gpu_id))} >
-                        <div id=format!("side-gpu-{}", gpu_id)></div>
-                    </button>}
+                        <div class="leftmini" id=format!("side-gpu-{}", gpu_id)></div>
+                        <div class="rightmini">
+                            <div class="rightminititle">{format!("GPU {}", gpu_id)}</div>
+                            <br/>
+                            {gpu_descr}
+                        </div>
+                    </button>
+                }
             }
         />
     }
@@ -245,15 +256,56 @@ fn SidePanel(
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
 ) -> impl IntoView {
+    let cpu_descr = move || {
+        let sys_util_history = sys_util_history.get();
+        let (usage, freq) = if let Some(sys_util) = sys_util_history.back() {
+            let cpus = &sys_util.cpus;
+            let usage = cpus.iter().map(|cpu| cpu.usage).sum::<f32>() / cpus.len() as f32;
+            let freq_mhz = cpus.iter().map(|cpu| cpu.freq).sum::<u64>() / cpus.len() as u64;
+            let freq = freq_mhz as f32 / 1000.0;
+            (usage, freq)
+        } else {
+            (0.0, 0.0)
+        };
+        format!("{:.0}% {:.2} GHz", usage, freq)
+    };
+
+    let mem_descr = move || {
+        let sys_util_history = sys_util_history.get();
+        if let Some(sys_util) = sys_util_history.back() {
+            let gb = 1_073_741_824.0;
+            let mem_curr = sys_util.mem as f32 / gb;
+            let mem_max = sys_util.mem_max as f32 / gb;
+            format!(
+                "{:.1}/{:.1} GiB ({:.0}%)",
+                mem_curr,
+                mem_max,
+                mem_curr / mem_max * 100.0
+            )
+        } else {
+            String::new()
+        }
+    };
+
     view! {cx,
-        <div class="left">
+        <div class="leftpanel">
 
             <button on:click=move |_| {main_view.set(MainView::Cpu)}>
                 <PlotCpuMini sys_util_history=sys_util_history max_history=max_history/>
+                <div class="rightmini">
+                    <div class="rightminititle">CPU</div>
+                    <br/>
+                    {cpu_descr}
+                </div>
             </button>
 
             <button on:click=move |_| {main_view.set(MainView::Mem)}>
                 <PlotMemMini sys_util_history=sys_util_history max_history=max_history/>
+                <div class="rightmini">
+                <div class="rightminititle">Memory</div>
+                <br/>
+                {mem_descr}
+                </div>
             </button>
 
             <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
@@ -263,17 +315,16 @@ fn SidePanel(
     }
 }
 
-#[allow(unused)]
 fn print_bytes(value: u64) -> String {
     let mut value = value as f32;
     let suffixes = ["B", "KiB", "MiB", "GiB", "TiB"];
     let base = 1024.0;
     let mut pow = 0;
-    while value > base {
+    while (value >= base) && pow < suffixes.len() - 1 {
         value /= base;
         pow += 1;
     }
-    format!("{:.1} {}", value, suffixes.get(pow).unwrap_or(&"TB"))
+    format!("{:.1} {}", value, suffixes.get(pow).unwrap_or(&"TiB"))
 }
 
 #[component]
@@ -366,7 +417,7 @@ fn MainPanel(
     });
 
     view! {cx,
-        <div class="right" id=div_id></div>
+        <div class="rightpanel" id=div_id></div>
     }
 }
 
@@ -416,5 +467,24 @@ pub fn App(cx: Scope) -> impl IntoView {
                 <MainPanel main_view=main_view sys_util_history=sys_util_history max_history=max_history max_history_time=max_history_time/>
             </div>
         </main>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::print_bytes;
+
+    #[test]
+    fn print_bytes_test() {
+        let test_cases = [
+            (0, "0.0 B"),
+            (1023, "1023.0 B"),
+            (1024, "1.0 KiB"),
+            (21_372_137, "20.4 MiB"),
+            (2_137_213_721_372_137, "1943.8 TiB"),
+        ];
+        for (input, expected) in test_cases {
+            assert_eq!(expected, print_bytes(input));
+        }
     }
 }
