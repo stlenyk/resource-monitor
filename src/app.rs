@@ -287,120 +287,82 @@ fn MainPanel(
     let div_id = "main-view";
 
     create_effect(cx, move |_| {
-        match main_view.get() {
+        let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
+        let black = Rgb::new(0, 0, 0);
+        let x_axis = Axis::new()
+            .range(vec![0, max_history - 1])
+            .tick_values(vec![0.0])
+            .tick_text(vec![format!("{} s", max_history_time.as_secs())])
+            .line_color(black)
+            .mirror(true);
+        let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
+
+        let mut y_axis = Axis::new()
+            .side(AxisSide::Right)
+            .line_color(black)
+            .mirror(true);
+
+        let mut plot = match main_view.get() {
             MainView::Cpu => {
-                let mut plot = plot_cpu(&sys_util_history.get(), max_history);
+                let plot = plot_cpu(&sys_util_history.get(), max_history);
 
-                let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
-
-                let black = Rgb::new(0, 0, 0);
-                let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
-                let y_axis = Axis::new()
+                y_axis = y_axis
                     .range(vec![0, 100])
                     .tick_values(y_ticks)
-                    .tick_text(y_ticks_text)
-                    .side(AxisSide::Right)
-                    .line_color(black)
-                    .mirror(true);
-                let x_axis = Axis::new()
-                    .range(vec![0, max_history - 1])
-                    .tick_values(vec![0.0])
-                    .tick_text(vec![format!("{} s", max_history_time.as_secs())])
-                    .line_color(black)
-                    .mirror(true);
-                let _transparent = Rgba::new(0, 0, 0, 0.0);
-                let layout = plot
-                    .layout()
-                    .clone()
-                    // .paper_background_color(transparent)
-                    .title(title)
-                    .y_axis(y_axis)
-                    .x_axis(x_axis);
-                plot.set_layout(layout);
+                    .tick_text(y_ticks_text);
 
-                spawn_local(async move {
-                    react(div_id, &plot).await;
-                });
+                plot
             }
 
             MainView::Mem => {
-                let mut plot = plot_mem(&sys_util_history.get(), max_history);
+                let plot = plot_mem(&sys_util_history.get(), max_history);
 
-                let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
-
-                let black = Rgb::new(0, 0, 0);
                 let mem_max = sys_util_history
                     .get()
                     .get(0)
                     .map_or(0, |sys_util| sys_util.mem_max);
-                let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
                 let y_ticks_values: Vec<_> =
                     y_ticks.iter().map(|y| y * mem_max as f64 / 100.0).collect();
                 let y_ticks_text = y_ticks_values
                     .iter()
                     .map(|y| print_bytes(*y as u64))
                     .collect();
-                let y_axis = Axis::new()
+                y_axis = y_axis
                     .range(vec![0, mem_max])
                     .tick_values(y_ticks_values)
-                    .tick_text(y_ticks_text)
-                    .side(AxisSide::Right)
-                    .line_color(black)
-                    .mirror(true);
-                let x_axis = Axis::new()
-                    .range(vec![0, max_history - 1])
-                    .tick_values(vec![0.0])
-                    .tick_text(vec![format!("{} s", max_history_time.as_secs())])
-                    .line_color(black)
-                    .mirror(true);
-                let layout = plot
-                    .layout()
-                    .clone()
-                    .title(title)
-                    .y_axis(y_axis)
-                    .x_axis(x_axis);
-                plot.set_layout(layout);
+                    .tick_text(y_ticks_text);
 
-                spawn_local(async move {
-                    react(div_id, &plot).await;
-                });
+                plot
             }
 
             MainView::Gpu(gpu_id) => {
-                let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
+                let plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
-                let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
-
-                let black = Rgb::new(0, 0, 0);
-                let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
-                let y_axis = Axis::new()
+
+                y_axis = y_axis
                     .range(vec![0, 100])
                     .tick_values(y_ticks)
-                    .tick_text(y_ticks_text)
-                    .side(AxisSide::Right)
-                    .line_color(black)
-                    .mirror(true);
-                let x_axis = Axis::new()
-                    .range(vec![0, max_history - 1])
-                    .tick_values(vec![0.0])
-                    .tick_text(vec![format!("{} s", max_history_time.as_secs())])
-                    .line_color(black)
-                    .mirror(true);
-                let layout = plot
-                    .layout()
-                    .clone()
-                    .title(title)
-                    .y_axis(y_axis)
-                    .x_axis(x_axis);
-                plot.set_layout(layout);
+                    .tick_text(y_ticks_text);
 
-                spawn_local(async move {
-                    react(div_id, &plot).await;
-                });
+                plot
             }
-        }
+        };
+
+        let _transparent = Rgba::new(0, 0, 0, 0.0);
+        let layout = plot
+            .layout()
+            .clone()
+            // .paper_background_color(transparent)
+            .title(title)
+            .y_axis(y_axis)
+            .x_axis(x_axis);
+        plot.set_layout(layout);
+
+        spawn_local(async move {
+            react(div_id, &plot).await;
+        });
     });
 
     view! {cx,
@@ -417,7 +379,7 @@ enum MainView {
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
-    let update_interval = Duration::from_secs(1);
+    let update_interval = Duration::from_millis(500);
     let max_history_time = Duration::from_secs(60);
     let max_history = (max_history_time.as_millis() / update_interval.as_millis()) as usize;
 
