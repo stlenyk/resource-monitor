@@ -36,4 +36,5 @@ pub struct SystemInfo {
     pub cache_l3: Option<u16>,
     pub max_mem: u64,
     pub gpu_count: u32,
+    pub gpu_names: Vec<String>,
 }

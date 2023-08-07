@@ -11,12 +11,14 @@
 
 .leftmini {
   float: left;
-  height: 80px;
-  width: 100px;
+  height: 60px;
+  width: 80px;
 }
 
 .rightmini {
   text-align: left;
+  overflow-wrap: break-word;
+  margin-left: 85px;
 }
 
 .rightminititle {
@@ -24,6 +26,7 @@
 }
 
 button {
+  margin-bottom: 2px;
   width: 100%;
 }
 

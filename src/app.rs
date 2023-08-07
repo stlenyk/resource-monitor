@@ -61,6 +61,13 @@ fn plot_cpu(sys_util_history: &VecDeque<SystemUtilization>, max_history: usize) 
         for (i, y) in traces.iter().enumerate() {
             let color = colors[i % colors.len()];
             let trace = Scatter::new(x.clone(), y.clone())
+                // Line smoothing
+                // .line(
+                //     plotly::common::Line::new()
+                //         .shape(plotly::common::LineShape::Spline)
+                //         // between 0.0 and 1.3
+                //         .smoothing(1.3),
+                // )
                 .show_legend(false)
                 .stack_group(stack_group)
                 .marker(Marker::new().color(color));
@@ -229,7 +236,7 @@ fn PlotGpusMini(
                 let gpu_descr = move || {
                     if let Some(last) = sys_util_history.get().back() {
                         let gpu = last.gpus[gpu_id].clone();
-                        format!("{}% ({} °C)", gpu.usage, gpu.temp)
+                        format!("{}% ({} ℃)", gpu.usage, gpu.temp)
                     } else {
                         String::new()
                     }
@@ -310,7 +317,7 @@ fn SidePanel(
 
             <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
 
-            // <img src="public/rzulta.png" alt="wrong path" style="width:100%; height:auto"/>
+            // <img src="public/rzulta.png" style="width:100%; height:auto"/>
         </div>
     }
 }
@@ -331,6 +338,7 @@ fn print_bytes(value: u64) -> String {
 fn MainPanel(
     cx: Scope,
     main_view: ReadSignal<MainView>,
+    sys_info: ReadSignal<SystemInfo>,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
     max_history_time: Duration,
@@ -338,7 +346,7 @@ fn MainPanel(
     let div_id = "main-view";
 
     create_effect(cx, move |_| {
-        let title = Title::new(&format!("history len: {}", sys_util_history.get().len()));
+        let mut title = Title::new("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
             .range(vec![0, max_history - 1])
@@ -357,6 +365,7 @@ fn MainPanel(
             MainView::Cpu => {
                 let plot = plot_cpu(&sys_util_history.get(), max_history);
 
+                title = Title::new(&sys_info.get().cpu_brand.to_string());
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
                 y_axis = y_axis
                     .range(vec![0, 100])
@@ -390,8 +399,8 @@ fn MainPanel(
             MainView::Gpu(gpu_id) => {
                 let plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
+                title = Title::new(&sys_info.get().gpu_names[gpu_id]);
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
-
                 y_axis = y_axis
                     .range(vec![0, 100])
                     .tick_values(y_ticks)
@@ -430,12 +439,19 @@ enum MainView {
 
 #[component]
 pub fn App(cx: Scope) -> impl IntoView {
-    let update_interval = Duration::from_millis(500);
+    let update_interval = Duration::from_millis(1000);
     let max_history_time = Duration::from_secs(60);
     let max_history = (max_history_time.as_millis() / update_interval.as_millis()) as usize;
 
     let (sys_util_history, set_sys_util) = create_signal(cx, VecDeque::with_capacity(max_history));
+    let (sys_info, set_sys_info) = create_signal(cx, SystemInfo::default());
     let (main_view, set_main_view) = create_signal(cx, MainView::Cpu);
+
+    spawn_local(async move {
+        let values = invoke("get_sys_info", JsValue::NULL).await;
+        let values = serde_wasm_bindgen::from_value(values).unwrap();
+        set_sys_info.set(values);
+    });
 
     let update_sys_util = move || {
         spawn_local(async move {
@@ -456,15 +472,8 @@ pub fn App(cx: Scope) -> impl IntoView {
     view! { cx,
         <main class="container">
             <div>
-                <p>"Main view: " {move ||
-                    match main_view.get() {
-                        MainView::Cpu => "cpu".to_owned(),
-                        MainView::Mem => "mem".to_owned(),
-                        MainView::Gpu(gpu_id) => format!("gpu{}", gpu_id)
-                    }
-                }</p>
                 <SidePanel main_view=set_main_view sys_util_history=sys_util_history max_history=max_history/>
-                <MainPanel main_view=main_view sys_util_history=sys_util_history max_history=max_history max_history_time=max_history_time/>
+                <MainPanel main_view=main_view sys_util_history=sys_util_history max_history=max_history max_history_time=max_history_time sys_info=sys_info/>
             </div>
         </main>
     }

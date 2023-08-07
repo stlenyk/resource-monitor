@@ -43,7 +43,20 @@ impl SystemMonitor {
         let cpu_core_count = sys.cpus().len() as u32;
         let max_mem = sys.total_memory();
 
-        let gpu_count = Nvml::init().map_or(0, |nvml| nvml.device_count().unwrap_or(0));
+        let (gpu_count, gpu_names) = if let Ok(nvml) = Nvml::init() {
+            let gpu_count = nvml.device_count().unwrap_or(0);
+            let gpu_names = (0..gpu_count)
+                .map(|gpu_id| {
+                    nvml.device_by_index(gpu_id)
+                        .map_or("".to_owned(), |device| {
+                            device.name().unwrap_or("".to_owned())
+                        })
+                })
+                .collect();
+            (gpu_count, gpu_names)
+        } else {
+            (0, Vec::new())
+        };
 
         let cache_l1 = cpuid
             .get_l1_cache_and_tlb_info()
@@ -62,6 +75,7 @@ impl SystemMonitor {
             cache_l3,
             max_mem,
             gpu_count,
+            gpu_names,
         };
 
         Self {
