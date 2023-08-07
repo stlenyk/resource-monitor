@@ -86,9 +86,10 @@ impl SystemMonitor {
     }
 
     fn get_stats(&mut self) -> SystemUtilization {
-        self.sys.refresh_all();
         self.sys
-            .refresh_cpu_specifics(CpuRefreshKind::new().with_frequency());
+            .refresh_cpu_specifics(CpuRefreshKind::new().with_cpu_usage().with_frequency());
+        self.sys.refresh_processes();
+        self.sys.refresh_memory();
         let cpus = self
             .sys
             .cpus()
