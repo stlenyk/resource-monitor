@@ -1,7 +1,31 @@
-# Tauri + Leptos
+# Resource monitor
 
-This template should help get you started developing with Tauri and Leptos.
+A resource monitor with a Windows Task Manager-inspired look
 
-## Recommended IDE Setup
+Created using [Tauri](https://tauri.app/) and [Leptos](https://leptos.dev/).
 
-[VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+## Build
+
+1. Install [Rust](https://www.rust-lang.org/learn/get-started).
+
+2. Install Tauri's Rust CLI:
+
+    ```sh
+    cargo install tauri-cli
+    ```
+
+3. `cd` into the project directory and:
+
+* For hot reload dev build run
+
+    ```sh
+    cargo tauri dev
+    ```
+
+* For release build run
+
+    ```sh
+    cargo tauri dev
+    ```
+
+    The app binary will be located in `target/release`.

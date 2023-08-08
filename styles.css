@@ -28,6 +28,7 @@
 button {
   margin-bottom: 2px;
   width: 100%;
+  cursor: pointer;
 }
 
 /* .logo.leptos:hover {
