@@ -1,8 +1,8 @@
 # Issues
 
-## Frequency measurement doesn't work on windows
+## Frequency measurement doesn't work on Windows
 
-`sysinfo` uses winapi's [CallNtPowerInformation](https://learn.microsoft.com/en-us/windows/win32/api/powerbase/nf-powerbase-callntpowerinformation) function to check frequency. The `PROCESSOR_POWER_INFORMATION.CurrentMhz` ([reference](https://learn.microsoft.com/en-us/windows/win32/power/processor-power-information-str)) is treated as the result. Somewhere in ~2021 however, the function's behaviour was changed to instead return maximum frequency (at the time of writing the winapi's docs are not updated to reflect that). See [this thread](https://github.com/microsoft/Windows-Dev-Performance/issues/100) for more info.
+`sysinfo` uses winapi's [CallNtPowerInformation](https://learn.microsoft.com/en-us/windows/win32/api/powerbase/nf-powerbase-callntpowerinformation) function to check frequency. Specificcaly, `PROCESSOR_POWER_INFORMATION.CurrentMhz` ([reference](https://learn.microsoft.com/en-us/windows/win32/power/processor-power-information-str)) is returned. Somewhere in ~2021 however, the function's behaviour was changed to instead return maximum frequency (at the time of writing the winapi's docs are not updated to reflect that). See [this thread](https://github.com/microsoft/Windows-Dev-Performance/issues/100) for more info.
 
 `sysinfo`'s [code](https://github.com/GuillaumeGomez/sysinfo/blob/a1a87de366df2cdc9f5448b926ac22292ed4a826/src/windows/cpu.rs#L473-L496)
 
