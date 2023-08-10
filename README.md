@@ -6,7 +6,7 @@ Created using [Tauri](https://tauri.app/) and [Leptos](https://leptos.dev/).
 
 ## How to install
 
-Head to the ***releases*** tab and download a package suitable for you.
+Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*** tab and download a package suitable for you.
 
 ## Build from source
 
@@ -58,5 +58,3 @@ Head to the ***releases*** tab and download a package suitable for you.
         ```
 
         The app binary will be located in `target/release`.
-
-![Detailed instructions]
