@@ -6,7 +6,7 @@ Created using [Tauri](https://tauri.app/) and [Leptos](https://leptos.dev/).
 
 ## How to install
 
-Head to ***release*** tab and download a package suitable for your.
+Head to the ***releases*** tab and download a package suitable for you.
 
 ## Build from source
 
