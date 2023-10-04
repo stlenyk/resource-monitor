@@ -1,8 +1,10 @@
 # Resource monitor
 
-A resource monitor with a Windows Task Manager-inspired look
+A resource monitor with a Windows Task Manager-inspired look.
 
 Created using [Tauri](https://tauri.app/) and [Leptos](https://leptos.dev/).
+
+![preview](preview.gif)
 
 ## How to install
 
@@ -17,8 +19,8 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
 2. Install WASM and its bundler [Trunk](https://trunkrs.dev/):
 
     ```sh
-        rustup target add wasm32-unknown-unknown
-        cargo install trunk
+    rustup target add wasm32-unknown-unknown
+    cargo install trunk
     ```
 
 3. Install Tauri's Rust CLI:
