@@ -10,7 +10,7 @@ use plotly::{
     layout::{Axis, Margin},
     Configuration, Layout, Plot, Scatter,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -19,16 +19,11 @@ extern "C" {
     async fn invoke(cmd: &str, args: JsValue) -> JsValue;
 }
 
-#[derive(Serialize, Deserialize)]
-struct GreetArgs<'a> {
-    name: &'a str,
-}
-
 // Assumes that the number of cpus doesn't change and may panic otherwise.
 fn plot_cpu(sys_util_history: &VecDeque<SystemUtilization>, max_history: usize) -> Plot {
     let mut plot = Plot::new();
 
-    let config = Configuration::new().static_plot(true);
+    let config = Configuration::new().static_plot(true).responsive(true);
     plot.set_configuration(config);
     let layout = Layout::new().auto_size(true);
     plot.set_layout(layout);
@@ -121,12 +116,11 @@ fn plot_gpu(
 
 #[component]
 fn PlotCpuMini(
-    cx: Scope,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
 ) -> impl IntoView {
     let div_id = "side-cpu";
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         let mut plot = plot_cpu(&sys_util_history.get(), max_history);
 
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -146,19 +140,18 @@ fn PlotCpuMini(
         });
     });
 
-    view! {cx,
+    view! {
         <div class="leftmini" id={div_id}></div>
     }
 }
 
 #[component]
 fn PlotMemMini(
-    cx: Scope,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
 ) -> impl IntoView {
     let div_id = "side-mem";
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         let mut plot = plot_mem(&sys_util_history.get(), max_history);
 
         let max_mem = if let Some(sys_util) = sys_util_history.get().get(0) {
@@ -182,14 +175,13 @@ fn PlotMemMini(
         });
     });
 
-    view! {cx,
+    view! {
         <div class="leftmini" id={div_id}></div>
     }
 }
 
 #[component]
 fn PlotGpusMini(
-    cx: Scope,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
     main_view: WriteSignal<MainView>,
@@ -201,15 +193,15 @@ fn PlotGpusMini(
     // ...
     // view! {... id=div_id ...}
     // Why `div_id` can't be reused?
-    view! {cx,
+    view! {
         <For
             each=move || 0..sys_util_history
                 .get()
                 .get(0)
                 .map_or(0, |sys_util| sys_util.gpus.len())
             key=|gpu_id| *gpu_id
-            view=move |cx, gpu_id| {
-                create_effect(cx, move |_| {
+            children=move |gpu_id| {
+                create_effect(move |_| {
                     let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
                     let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -241,7 +233,7 @@ fn PlotGpusMini(
                         String::new()
                     }
                 };
-                view! {cx,
+                view! {
                     <button on:click=move |_| {main_view.set(MainView::Gpu(gpu_id))} >
                         <div class="leftmini" id=format!("side-gpu-{}", gpu_id)></div>
                         <div class="rightmini">
@@ -258,7 +250,6 @@ fn PlotGpusMini(
 
 #[component]
 fn SidePanel(
-    cx: Scope,
     main_view: WriteSignal<MainView>,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: usize,
@@ -294,7 +285,7 @@ fn SidePanel(
         }
     };
 
-    view! {cx,
+    view! {
         <div class="leftpanel">
 
             <button on:click=move |_| {main_view.set(MainView::Cpu)}>
@@ -336,7 +327,6 @@ fn print_bytes(value: u64) -> String {
 
 #[component]
 fn MainPanel(
-    cx: Scope,
     main_view: ReadSignal<MainView>,
     sys_info: ReadSignal<SystemInfo>,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
@@ -345,7 +335,7 @@ fn MainPanel(
 ) -> impl IntoView {
     let div_id = "main-view";
 
-    create_effect(cx, move |_| {
+    create_effect(move |_| {
         let mut title = Title::new("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
@@ -425,7 +415,7 @@ fn MainPanel(
         });
     });
 
-    view! {cx,
+    view! {
         <div class="rightpanel" id=div_id></div>
     }
 }
@@ -438,14 +428,14 @@ enum MainView {
 }
 
 #[component]
-pub fn App(cx: Scope) -> impl IntoView {
+pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
     let max_history_time = Duration::from_secs(60);
     let max_history = (max_history_time.as_millis() / update_interval.as_millis()) as usize;
 
-    let (sys_util_history, set_sys_util) = create_signal(cx, VecDeque::with_capacity(max_history));
-    let (sys_info, set_sys_info) = create_signal(cx, SystemInfo::default());
-    let (main_view, set_main_view) = create_signal(cx, MainView::Cpu);
+    let (sys_util_history, set_sys_util) = create_signal(VecDeque::with_capacity(max_history));
+    let (sys_info, set_sys_info) = create_signal(SystemInfo::default());
+    let (main_view, set_main_view) = create_signal(MainView::Cpu);
 
     spawn_local(async move {
         let values = invoke("get_sys_info", JsValue::NULL).await;
@@ -469,7 +459,7 @@ pub fn App(cx: Scope) -> impl IntoView {
 
     set_interval(update_sys_util, update_interval);
 
-    view! { cx,
+    view! {
         <main class="container">
             <div>
                 <SidePanel main_view=set_main_view sys_util_history=sys_util_history max_history=max_history/>
