@@ -152,10 +152,68 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
     state.get_state().unwrap().sys_info.clone()
 }
 
+use tauri::Manager;
+use tauri::{CustomMenuItem, GlobalWindowEvent, SystemTray, SystemTrayEvent, SystemTrayMenu};
+
 fn main() {
+    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
+    let hide = CustomMenuItem::new("hide".to_string(), "Hide");
+    let show = CustomMenuItem::new("show".to_string(), "Show");
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(quit)
+        .add_native_item(tauri::SystemTrayMenuItem::Separator)
+        .add_item(show)
+        .add_item(hide);
+    let tray = tauri::SystemTray::new().with_menu(tray_menu);
+
     tauri::Builder::default()
         .manage(SystemMonitorState::new())
+        .system_tray(tray)
+        .on_system_tray_event(|app, event| match event {
+            SystemTrayEvent::LeftClick {
+                position: _,
+                size: _,
+                ..
+            } => {
+                println!("system tray received a left click");
+            }
+            SystemTrayEvent::RightClick {
+                position: _,
+                size: _,
+                ..
+            } => {
+                println!("system tray received a right click");
+            }
+            SystemTrayEvent::DoubleClick {
+                position: _,
+                size: _,
+                ..
+            } => {
+                println!("system tray received a double click");
+            }
+            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+                "quit" => {
+                    std::process::exit(0);
+                }
+                "hide" => {
+                    let window = app.get_window("main").unwrap();
+                    window.hide().unwrap();
+                }
+                "show" => {
+                    let window = app.get_window("main").unwrap();
+                    window.show().unwrap();
+                }
+                _ => {}
+            },
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![get_stats, get_sys_info])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                api.prevent_exit();
+            }
+            _ => {}
+        });
 }
