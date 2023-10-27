@@ -152,8 +152,10 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
     state.get_state().unwrap().sys_info.clone()
 }
 
-use tauri::Manager;
-use tauri::{CustomMenuItem, GlobalWindowEvent, SystemTray, SystemTrayEvent, SystemTrayMenu};
+use tauri::{
+    CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, WindowEvent,
+};
 
 fn main() {
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
@@ -161,10 +163,10 @@ fn main() {
     let show = CustomMenuItem::new("show".to_string(), "Show");
     let tray_menu = SystemTrayMenu::new()
         .add_item(quit)
-        .add_native_item(tauri::SystemTrayMenuItem::Separator)
+        .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(show)
         .add_item(hide);
-    let tray = tauri::SystemTray::new().with_menu(tray_menu);
+    let tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
         .manage(SystemMonitorState::new())
@@ -207,11 +209,18 @@ fn main() {
             },
             _ => {}
         })
+        .on_window_event(|event| match event.event() {
+            WindowEvent::CloseRequested { api, .. } => {
+                event.window().hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![get_stats, get_sys_info])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|_app_handle, event| match event {
-            tauri::RunEvent::ExitRequested { api, .. } => {
+            RunEvent::ExitRequested { api, .. } => {
                 api.prevent_exit();
             }
             _ => {}
