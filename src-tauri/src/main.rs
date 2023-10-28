@@ -168,61 +168,42 @@ fn main() {
         .add_item(hide);
     let tray = SystemTray::new().with_menu(tray_menu);
 
+    const WINDOW_ID: &str = "main";
+
+    #[allow(clippy::single_match)]
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            app.get_window(WINDOW_ID).unwrap().show().unwrap();
+        }))
         .manage(SystemMonitorState::new())
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
-            SystemTrayEvent::LeftClick {
-                position: _,
-                size: _,
-                ..
-            } => {
-                println!("system tray received a left click");
-            }
-            SystemTrayEvent::RightClick {
-                position: _,
-                size: _,
-                ..
-            } => {
-                println!("system tray received a right click");
-            }
-            SystemTrayEvent::DoubleClick {
-                position: _,
-                size: _,
-                ..
-            } => {
-                println!("system tray received a double click");
-            }
             SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
                 "quit" => {
                     std::process::exit(0);
                 }
                 "hide" => {
-                    let window = app.get_window("main").unwrap();
-                    window.hide().unwrap();
+                    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
                 }
                 "show" => {
-                    let window = app.get_window("main").unwrap();
-                    window.show().unwrap();
+                    app.get_window(WINDOW_ID).unwrap().show().unwrap();
                 }
                 _ => {}
             },
             _ => {}
         })
-        .on_window_event(|event| match event.event() {
-            WindowEvent::CloseRequested { api, .. } => {
+        .on_window_event(|event| {
+            if let WindowEvent::CloseRequested { api, .. } = event.event() {
                 event.window().hide().unwrap();
                 api.prevent_close();
             }
-            _ => {}
         })
         .invoke_handler(tauri::generate_handler![get_stats, get_sys_info])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app_handle, event| match event {
-            RunEvent::ExitRequested { api, .. } => {
+        .run(|_app_handle, event| {
+            if let RunEvent::ExitRequested { api, .. } = event {
                 api.prevent_exit();
             }
-            _ => {}
         });
 }
