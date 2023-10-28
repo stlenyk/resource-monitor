@@ -172,6 +172,7 @@ fn main() {
 
     #[allow(clippy::single_match)]
     tauri::Builder::default()
+        // Breaks `cargo tauri dev` reload
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             app.get_window(WINDOW_ID).unwrap().show().unwrap();
         }))

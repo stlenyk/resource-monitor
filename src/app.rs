@@ -148,10 +148,12 @@ fn PlotCpuMini(
 #[component]
 fn PlotMemMini(
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-mem";
     create_effect(move |_| {
+        let max_history = max_history.get();
+
         let mut plot = plot_mem(&sys_util_history.get(), max_history);
 
         let max_mem = if let Some(sys_util) = sys_util_history.get().get(0) {
@@ -183,7 +185,7 @@ fn PlotMemMini(
 #[component]
 fn PlotGpusMini(
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    max_history: ReadSignal<usize>,
     main_view: WriteSignal<MainView>,
 ) -> impl IntoView {
     view! {
@@ -205,6 +207,8 @@ fn PlotGpusMini(
                 //     });
                 // });
                 create_effect(move |_| {
+                    let max_history = max_history.get();
+
                     let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
                     let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -301,7 +305,7 @@ fn SidePanel(
             </button>
 
             <button on:click=move |_| {main_view.set(MainView::Mem)}>
-                <PlotMemMini sys_util_history=sys_util_history max_history=max_history.get()/>
+                <PlotMemMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
                 <div class="rightminititle">Memory</div>
                 <br/>
@@ -309,7 +313,7 @@ fn SidePanel(
                 </div>
             </button>
 
-            <PlotGpusMini sys_util_history=sys_util_history max_history=max_history.get() main_view/>
+            <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
 
             // <img src="public/rzulta.png" style="width:100%; height:auto"/>
         </div>
@@ -325,7 +329,19 @@ fn print_bytes(value: u64) -> String {
         value /= base;
         pow += 1;
     }
-    format!("{:.1} {}", value, suffixes.get(pow).unwrap_or(&"TiB"))
+    format!("{:.1} {}", value, suffixes.get(pow).unwrap())
+}
+
+fn print_secs(value: u64) -> String {
+    let mut value = value;
+    let suffixes = ["s", "min", "h"];
+    let base = 60;
+    let mut pow = 0;
+    while (value >= base) && pow < suffixes.len() - 1 {
+        value /= base;
+        pow += 1;
+    }
+    format!("{} {}", value, suffixes.get(pow).unwrap())
 }
 
 #[component]
@@ -334,7 +350,6 @@ fn MainPanel(
     sys_info: ReadSignal<SystemInfo>,
     sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
-    max_history_time: Duration,
 ) -> impl IntoView {
     let div_id = "main-view";
     create_effect(move |_| {
@@ -343,7 +358,7 @@ fn MainPanel(
         let x_axis = Axis::new()
             .range(vec![0, max_history.get() - 1])
             .tick_values(vec![0.0])
-            .tick_text(vec![format!("{} s", max_history.get())])
+            .tick_text(vec![format!("{}", print_secs(max_history.get() as u64))])
             .line_color(black)
             .mirror(true);
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -423,7 +438,6 @@ fn MainPanel(
                 <div id=div_id/>
             </div>
         </div>
-        <h2>{max_history}</h2>
     }
 }
 
@@ -437,7 +451,6 @@ enum MainView {
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
-    let max_history_time = Duration::from_secs(60);
 
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_util_history_to_show = RwSignal::new(VecDeque::new());
@@ -483,7 +496,7 @@ pub fn App() -> impl IntoView {
         <main class="container">
             <div>
                 <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show.read_only() max_history=history_time.read_only()/>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show.read_only() max_history=history_time.read_only() max_history_time=max_history_time sys_info=sys_info.read_only()/>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show.read_only() max_history=history_time.read_only() sys_info=sys_info.read_only()/>
 
                 <b>"Period: "</b>
                 <select on:input=get_history_time>
@@ -495,7 +508,6 @@ pub fn App() -> impl IntoView {
                     <option value=12*60*60>"12 h"</option>
                     <option value=24*60*60>"24 h"</option>
                 </select>
-                <h2>{history_time}</h2>
             </div>
         </main>
     }
@@ -503,7 +515,7 @@ pub fn App() -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::print_bytes;
+    use super::{print_bytes, print_secs};
 
     #[test]
     fn print_bytes_test() {
@@ -516,6 +528,27 @@ mod tests {
         ];
         for (input, expected) in test_cases {
             assert_eq!(expected, print_bytes(input));
+        }
+    }
+
+    #[test]
+    fn print_time_test() {
+        let test_cases = [
+            (0, "0 s"),
+            (59, "59 s"),
+            (60, "1 min"),
+            (3 * 60, "3 min"),
+            (3 * 60 + 1, "3 min"),
+            (60, "1 min"),
+            (5 * 60, "5 min"),
+            (30 * 60, "30 min"),
+            (3 * 60 * 60, "3 h"),
+            (6 * 60 * 60, "6 h"),
+            (12 * 60 * 60, "12 h"),
+            (24 * 60 * 60, "24 h"),
+        ];
+        for (input, expected) in test_cases {
+            assert_eq!(expected, print_secs(input));
         }
     }
 }
