@@ -125,7 +125,9 @@ fn PlotCpuMini(
 
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
         let y_axis = Axis::new().range(vec![0, 100]).tick_values(y_ticks);
-        let x_axis = Axis::new().range(vec![0, max_history.get() - 1]);
+        let x_axis = Axis::new()
+            .range(vec![0, max_history.get() - 1])
+            .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
             .layout()
@@ -162,7 +164,9 @@ fn PlotMemMini(
             0
         };
         let y_axis = Axis::new().range(vec![0, max_mem]);
-        let x_axis = Axis::new().range(vec![0, max_history - 1]);
+        let x_axis = Axis::new()
+            .range(vec![0, max_history - 1])
+            .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
             .layout()
@@ -217,7 +221,7 @@ fn PlotGpusMini(
                         .tick_values(y_ticks);
                     let x_axis = Axis::new()
                         .range(vec![0, max_history - 1])
-                        .tick_values(vec![0.0]);
+                        .tick_values(vec![]);
                     let margin = Margin::new().left(0).right(0).top(0).bottom(0);
                     let layout = plot
                         .layout()
@@ -357,7 +361,7 @@ fn MainPanel(
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
             .range(vec![0, max_history.get() - 1])
-            .tick_values(vec![0.0])
+            .tick_values(vec![])
             .tick_text(vec![format!("{}", print_secs(max_history.get() as u64))])
             .line_color(black)
             .mirror(true);
@@ -481,7 +485,6 @@ pub fn App() -> impl IntoView {
             sys_util_history.set(history.clone());
             let history_to_show = history
                 .iter()
-                .rev()
                 .cloned()
                 // .take(history_time.get().as_secs() as usize)
                 .collect();
