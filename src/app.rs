@@ -116,7 +116,7 @@ fn plot_gpu(
 
 #[component]
 fn PlotCpuMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-cpu";
@@ -149,7 +149,7 @@ fn PlotCpuMini(
 
 #[component]
 fn PlotMemMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-mem";
@@ -188,7 +188,7 @@ fn PlotMemMini(
 
 #[component]
 fn PlotGpusMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
     main_view: WriteSignal<MainView>,
 ) -> impl IntoView {
@@ -262,7 +262,7 @@ fn PlotGpusMini(
 #[component]
 fn SidePanel(
     main_view: WriteSignal<MainView>,
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let cpu_descr = move || {
@@ -352,7 +352,7 @@ fn print_secs(value: u64) -> String {
 fn MainPanel(
     main_view: ReadSignal<MainView>,
     sys_info: ReadSignal<SystemInfo>,
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "main-view";
@@ -361,7 +361,7 @@ fn MainPanel(
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
             .range(vec![0, max_history.get() - 1])
-            .tick_values(vec![])
+            .tick_values(vec![0.0])
             .tick_text(vec![format!("{}", print_secs(max_history.get() as u64))])
             .line_color(black)
             .mirror(true);
@@ -457,10 +457,9 @@ pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
 
     let sys_util_history = RwSignal::new(VecDeque::new());
-    let sys_util_history_to_show = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
     let main_view = RwSignal::new(MainView::Cpu);
-    let history_time = RwSignal::new(60);
+    let history_time = RwSignal::new(5);
     let get_history_time = move |ev| {
         let value = event_target_value(&ev).parse().unwrap();
         history_time.set(value);
@@ -483,26 +482,35 @@ pub fn App() -> impl IntoView {
                 history.pop_front();
             }
             sys_util_history.set(history.clone());
-            let history_to_show = history
-                .iter()
-                .cloned()
-                // .take(history_time.get().as_secs() as usize)
-                .collect();
-            sys_util_history_to_show.set(history_to_show);
         });
     };
     update_sys_util();
 
     set_interval(update_sys_util, update_interval);
 
+    let sys_util_history_to_show = {
+        move || {
+            sys_util_history
+                .get()
+                .iter()
+                .rev()
+                .take(history_time.get())
+                .rev()
+                .cloned()
+                .collect()
+        }
+    }
+    .into_signal();
+
     view! {
         <main class="container">
             <div>
-                <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show.read_only() max_history=history_time.read_only()/>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show.read_only() max_history=history_time.read_only() sys_info=sys_info.read_only()/>
+                <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only()/>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only() sys_info=sys_info.read_only()/>
 
                 <b>"Period: "</b>
                 <select on:input=get_history_time>
+                    <option value=5>"5 s"</option>
                     <option value=60>"1 min"</option>
                     <option value=5*60>"5 min"</option>
                     <option value=30*60>"30 min"</option>
