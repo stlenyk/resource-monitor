@@ -158,24 +158,29 @@ use tauri::{
 };
 
 fn main() {
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let hide = CustomMenuItem::new("hide".to_string(), "Hide");
-    let show = CustomMenuItem::new("show".to_string(), "Show");
     let tray_menu = SystemTrayMenu::new()
-        .add_item(quit)
+        .add_item(CustomMenuItem::new("quit".to_string(), "Quit"))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(show)
-        .add_item(hide);
+        .add_item(CustomMenuItem::new("hide".to_string(), "Hide"))
+        .add_item(CustomMenuItem::new("show".to_string(), "Show"));
     let tray = SystemTray::new().with_menu(tray_menu);
 
     const WINDOW_ID: &str = "main";
 
+    let builder = if cfg!(not(debug_assertions)) {
+        println!("not debug");
+        tauri::Builder::default()
+            // This plugin breaks `cargo tauri dev` reload
+            .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+                app.get_window(WINDOW_ID).unwrap().show().unwrap();
+            }))
+    } else {
+        println!("debug");
+        tauri::Builder::default()
+    };
+
     #[allow(clippy::single_match)]
-    tauri::Builder::default()
-        // Breaks `cargo tauri dev` reload
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            app.get_window(WINDOW_ID).unwrap().show().unwrap();
-        }))
+    builder
         .manage(SystemMonitorState::new())
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
@@ -202,7 +207,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![get_stats, get_sys_info])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app_handle, event| {
+        .run(|_app, event| {
             if let RunEvent::ExitRequested { api, .. } = event {
                 api.prevent_exit();
             }
