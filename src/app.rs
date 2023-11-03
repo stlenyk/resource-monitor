@@ -297,8 +297,7 @@ fn SidePanel(
     };
 
     view! {
-        <div class="leftpanel">
-
+        <div>
             <button on:click=move |_| {main_view.set(MainView::Cpu)}>
                 <PlotCpuMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
@@ -455,11 +454,20 @@ enum MainView {
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
+    const TIME_OPTIONS: [u64; 7] = [
+        60,
+        5 * 60,
+        30 * 60,
+        3 * 3600,
+        6 * 3600,
+        12 * 3600,
+        24 * 3600,
+    ];
 
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
     let main_view = RwSignal::new(MainView::Cpu);
-    let history_time = RwSignal::new(5);
+    let history_time = RwSignal::new(TIME_OPTIONS[0] as usize);
     let get_history_time = move |ev| {
         let value = event_target_value(&ev).parse().unwrap();
         history_time.set(value);
@@ -475,13 +483,13 @@ pub fn App() -> impl IntoView {
         spawn_local(async move {
             let values = invoke("get_stats", JsValue::NULL).await;
             let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
-            let mut history = sys_util_history.get();
+            let mut history = sys_util_history.get_untracked();
             history.push_back(values);
             const SEC_24H: usize = 24 * 60 * 60;
             if history.len() > SEC_24H {
                 history.pop_front();
             }
-            sys_util_history.set(history.clone());
+            sys_util_history.set(history);
         });
     };
     update_sys_util();
@@ -505,20 +513,20 @@ pub fn App() -> impl IntoView {
     view! {
         <main class="container">
             <div>
-                <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only()/>
+                <div class="leftpanel">
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only()/>
+                    <div style="margin-top:10px">
+                        <b>"Period: "</b>
+                        <select on:input=get_history_time>
+                            {
+                                TIME_OPTIONS.into_iter()
+                                    .map(|x| view! { <option value=x> { print_secs(x) } </option> })
+                                    .collect_view()
+                            }
+                        </select>
+                    </div>
+                </div>
                 <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only() sys_info=sys_info.read_only()/>
-
-                <b>"Period: "</b>
-                <select on:input=get_history_time>
-                    <option value=5>"5 s"</option>
-                    <option value=60>"1 min"</option>
-                    <option value=5*60>"5 min"</option>
-                    <option value=30*60>"30 min"</option>
-                    <option value=3*60*60>"3 h"</option>
-                    <option value=6*60*60>"6 h"</option>
-                    <option value=12*60*60>"12 h"</option>
-                    <option value=24*60*60>"24 h"</option>
-                </select>
             </div>
         </main>
     }
