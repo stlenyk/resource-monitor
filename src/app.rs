@@ -451,6 +451,17 @@ enum MainView {
     Gpu(usize),
 }
 
+fn sample<T: Clone>(n: usize, arr: &[T]) -> VecDeque<T> {
+    let n = n.min(arr.len());
+    let mut res = VecDeque::with_capacity(n);
+    let step = arr.len() as f32 / n as f32;
+    for i in 0..n {
+        let index = (i as f32 * step) as usize;
+        res.push_back(arr[index].clone())
+    }
+    res
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
@@ -463,6 +474,23 @@ pub fn App() -> impl IntoView {
         12 * 3600,
         24 * 3600,
     ];
+
+    const X_AXIS_POINTS: usize = TIME_OPTIONS[0] as usize;
+    let initial_history = (0..12 * 3600)
+        .map(|_| {
+            SystemUtilization {
+                cpus: vec![
+                    CpuCore {
+                        usage: 60.0,
+                        ..Default::default()
+                    };
+                    12
+                ],
+                ..Default::default()
+            }
+            .clone()
+        })
+        .collect::<VecDeque<_>>();
 
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
@@ -502,19 +530,22 @@ pub fn App() -> impl IntoView {
                 .get()
                 .iter()
                 .rev()
+                .skip(sys_util_history.get().len() % (history_time.get() / X_AXIS_POINTS))
                 .take(history_time.get())
+                .step_by(history_time.get() / X_AXIS_POINTS)
                 .rev()
                 .cloned()
                 .collect()
         }
     }
     .into_signal();
+    let static_time = RwSignal::new(X_AXIS_POINTS);
 
     view! {
         <main class="container">
             <div>
                 <div class="leftpanel">
-                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only()/>
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only()/>
                     <div style="margin-top:10px">
                         <b>"Period: "</b>
                         <select on:input=get_history_time>
@@ -526,7 +557,7 @@ pub fn App() -> impl IntoView {
                         </select>
                     </div>
                 </div>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=history_time.read_only() sys_info=sys_info.read_only()/>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only() sys_info=sys_info.read_only()/>
             </div>
         </main>
     }
