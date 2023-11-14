@@ -157,25 +157,26 @@ use tauri::{
     SystemTrayMenuItem, WindowEvent,
 };
 
+const WINDOW_ID: &str = "main";
+const TRAY_QUIT: &str = "quit";
+const TRAY_HIDE: &str = "hide";
+const TRAY_SHOW: &str = "show";
+
 fn main() {
     let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new("quit".to_string(), "Quit"))
+        .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(CustomMenuItem::new("hide".to_string(), "Hide"))
-        .add_item(CustomMenuItem::new("show".to_string(), "Show"));
+        .add_item(CustomMenuItem::new(TRAY_HIDE, "Hide"))
+        .add_item(CustomMenuItem::new(TRAY_SHOW, "Show"));
     let tray = SystemTray::new().with_menu(tray_menu);
 
-    const WINDOW_ID: &str = "main";
-
     let builder = if cfg!(not(debug_assertions)) {
-        println!("not debug");
         tauri::Builder::default()
             // This plugin breaks `cargo tauri dev` reload
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
                 app.get_window(WINDOW_ID).unwrap().show().unwrap();
             }))
     } else {
-        println!("debug");
         tauri::Builder::default()
     };
 
@@ -185,14 +186,24 @@ fn main() {
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-                "quit" => {
+                TRAY_QUIT => {
                     std::process::exit(0);
                 }
-                "hide" => {
-                    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
-                }
-                "show" => {
-                    app.get_window(WINDOW_ID).unwrap().show().unwrap();
+                TRAY_HIDE | TRAY_SHOW => {
+                    let window = app.get_window(WINDOW_ID).unwrap();
+                    let item_handle = app.tray_handle().get_item(TRAY_HIDE);
+                    match id.as_str() {
+                        TRAY_HIDE => {
+                            window.hide().unwrap();
+                            item_handle.set_enabled(false).unwrap();
+                        }
+                        TRAY_SHOW => {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                            item_handle.set_enabled(true).unwrap();
+                        }
+                        _ => unreachable!(),
+                    }
                 }
                 _ => {}
             },
