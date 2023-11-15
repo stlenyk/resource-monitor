@@ -520,7 +520,9 @@ pub fn App() -> impl IntoView {
             sys_util_history
                 .get()
                 .iter()
+                .rev()
                 .take(TIME_OPTIONS[0] as usize)
+                .rev()
                 .cloned()
                 .collect()
         }
