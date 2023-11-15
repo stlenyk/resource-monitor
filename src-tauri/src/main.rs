@@ -174,7 +174,9 @@ fn main() {
         tauri::Builder::default()
             // This plugin breaks `cargo tauri dev` reload
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-                app.get_window(WINDOW_ID).unwrap().show().unwrap();
+                let window = app.get_window(WINDOW_ID).unwrap();
+                window.show().unwrap();
+                window.set_focus().unwrap();
             }))
     } else {
         tauri::Builder::default()

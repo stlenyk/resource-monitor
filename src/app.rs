@@ -476,6 +476,8 @@ pub fn App() -> impl IntoView {
     ];
 
     const X_AXIS_POINTS: usize = TIME_OPTIONS[0] as usize;
+
+    #[cfg(debug_assertions)]
     let initial_history = (0..12 * 3600)
         .map(|_| {
             SystemUtilization {
