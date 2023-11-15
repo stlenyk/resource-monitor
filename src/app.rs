@@ -452,17 +452,6 @@ enum MainView {
     Gpu(usize),
 }
 
-fn sample<T: Clone>(n: usize, arr: &[T]) -> VecDeque<T> {
-    let n = n.min(arr.len());
-    let mut res = VecDeque::with_capacity(n);
-    let step = arr.len() as f32 / n as f32;
-    for i in 0..n {
-        let index = (i as f32 * step) as usize;
-        res.push_back(arr[index].clone())
-    }
-    res
-}
-
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
@@ -477,23 +466,6 @@ pub fn App() -> impl IntoView {
     ];
 
     const X_AXIS_POINTS: usize = TIME_OPTIONS[0] as usize;
-
-    #[cfg(debug_assertions)]
-    let initial_history = (0..12 * 3600)
-        .map(|_| {
-            SystemUtilization {
-                cpus: vec![
-                    CpuCore {
-                        usage: 60.0,
-                        ..Default::default()
-                    };
-                    12
-                ],
-                ..Default::default()
-            }
-            .clone()
-        })
-        .collect::<VecDeque<_>>();
 
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
