@@ -33,13 +33,17 @@
     "security": {
       "csp": null
     },
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
     "windows": [
       {
         "fullscreen": false,
         "resizable": true,
         "title": "Resource Monitor",
         "width": 800,
-        "height": 600
+        "height": 480
       }
     ]
   }

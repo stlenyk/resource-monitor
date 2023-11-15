@@ -152,10 +152,77 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
     state.get_state().unwrap().sys_info.clone()
 }
 
+use tauri::{
+    CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, WindowEvent,
+};
+
+const WINDOW_ID: &str = "main";
+const TRAY_QUIT: &str = "quit";
+const TRAY_HIDE: &str = "hide";
+const TRAY_SHOW: &str = "show";
+
 fn main() {
-    tauri::Builder::default()
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"))
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(CustomMenuItem::new(TRAY_HIDE, "Hide"))
+        .add_item(CustomMenuItem::new(TRAY_SHOW, "Show"));
+    let tray = SystemTray::new().with_menu(tray_menu);
+
+    let builder = if cfg!(not(debug_assertions)) {
+        tauri::Builder::default()
+            // This plugin breaks `cargo tauri dev` reload
+            .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+                let window = app.get_window(WINDOW_ID).unwrap();
+                window.show().unwrap();
+                window.set_focus().unwrap();
+            }))
+    } else {
+        tauri::Builder::default()
+    };
+
+    #[allow(clippy::single_match)]
+    builder
         .manage(SystemMonitorState::new())
+        .system_tray(tray)
+        .on_system_tray_event(|app, event| match event {
+            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+                TRAY_QUIT => {
+                    std::process::exit(0);
+                }
+                TRAY_HIDE | TRAY_SHOW => {
+                    let window = app.get_window(WINDOW_ID).unwrap();
+                    let item_handle = app.tray_handle().get_item(TRAY_HIDE);
+                    match id.as_str() {
+                        TRAY_HIDE => {
+                            window.hide().unwrap();
+                            item_handle.set_enabled(false).unwrap();
+                        }
+                        TRAY_SHOW => {
+                            window.show().unwrap();
+                            window.set_focus().unwrap();
+                            item_handle.set_enabled(true).unwrap();
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        })
+        .on_window_event(|event| {
+            if let WindowEvent::CloseRequested { api, .. } = event.event() {
+                event.window().hide().unwrap();
+                api.prevent_close();
+            }
+        })
         .invoke_handler(tauri::generate_handler![get_stats, get_sys_info])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, event| {
+            if let RunEvent::ExitRequested { api, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }

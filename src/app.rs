@@ -116,16 +116,18 @@ fn plot_gpu(
 
 #[component]
 fn PlotCpuMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-cpu";
     create_effect(move |_| {
-        let mut plot = plot_cpu(&sys_util_history.get(), max_history);
+        let mut plot = plot_cpu(&sys_util_history.get(), max_history.get());
 
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
         let y_axis = Axis::new().range(vec![0, 100]).tick_values(y_ticks);
-        let x_axis = Axis::new().range(vec![0, max_history - 1]);
+        let x_axis = Axis::new()
+            .range(vec![0, max_history.get() - 1])
+            .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
             .layout()
@@ -147,11 +149,13 @@ fn PlotCpuMini(
 
 #[component]
 fn PlotMemMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-mem";
     create_effect(move |_| {
+        let max_history = max_history.get();
+
         let mut plot = plot_mem(&sys_util_history.get(), max_history);
 
         let max_mem = if let Some(sys_util) = sys_util_history.get().get(0) {
@@ -160,7 +164,9 @@ fn PlotMemMini(
             0
         };
         let y_axis = Axis::new().range(vec![0, max_mem]);
-        let x_axis = Axis::new().range(vec![0, max_history - 1]);
+        let x_axis = Axis::new()
+            .range(vec![0, max_history - 1])
+            .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
             .layout()
@@ -182,17 +188,10 @@ fn PlotMemMini(
 
 #[component]
 fn PlotGpusMini(
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
     main_view: WriteSignal<MainView>,
 ) -> impl IntoView {
-    // Why does compilation fail with this?
-    // let div_id = format!("side-gpu-{}", gpu_id);
-    // ...
-    // react(&div_id, &plot).await;
-    // ...
-    // view! {... id=div_id ...}
-    // Why `div_id` can't be reused?
     view! {
         <For
             each=move || 0..sys_util_history
@@ -201,7 +200,19 @@ fn PlotGpusMini(
                 .map_or(0, |sys_util| sys_util.gpus.len())
             key=|gpu_id| *gpu_id
             children=move |gpu_id| {
+                // TODO is there a way to pass around `let div_id = format!("side-gpu-{}", gpu_id)` that doesn't require 2 clone()s:
+                // let div_id = format!("side-gpu-{}", gpu_id);
+                // let div_id1 = div_id.clone();
+                // create_effect(move |_| {
+                //     ...
+                //     let div_id2 = div_id1.clone();
+                //     spawn_local(async move {
+                //         react(&div_id2, &plot).await;
+                //     });
+                // });
                 create_effect(move |_| {
+                    let max_history = max_history.get();
+
                     let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
 
                     let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -210,7 +221,7 @@ fn PlotGpusMini(
                         .tick_values(y_ticks);
                     let x_axis = Axis::new()
                         .range(vec![0, max_history - 1])
-                        .tick_values(vec![0.0]);
+                        .tick_values(vec![]);
                     let margin = Margin::new().left(0).right(0).top(0).bottom(0);
                     let layout = plot
                         .layout()
@@ -251,8 +262,8 @@ fn PlotGpusMini(
 #[component]
 fn SidePanel(
     main_view: WriteSignal<MainView>,
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let cpu_descr = move || {
         let sys_util_history = sys_util_history.get();
@@ -286,8 +297,7 @@ fn SidePanel(
     };
 
     view! {
-        <div class="leftpanel">
-
+        <div>
             <button on:click=move |_| {main_view.set(MainView::Cpu)}>
                 <PlotCpuMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
@@ -322,26 +332,37 @@ fn print_bytes(value: u64) -> String {
         value /= base;
         pow += 1;
     }
-    format!("{:.1} {}", value, suffixes.get(pow).unwrap_or(&"TiB"))
+    format!("{:.1} {}", value, suffixes.get(pow).unwrap())
+}
+
+fn print_secs(value: u64) -> String {
+    let mut value = value;
+    let suffixes = ["s", "min", "h"];
+    let base = 60;
+    let mut pow = 0;
+    while (value >= base) && pow < suffixes.len() - 1 {
+        value /= base;
+        pow += 1;
+    }
+    format!("{} {}", value, suffixes.get(pow).unwrap())
 }
 
 #[component]
 fn MainPanel(
     main_view: ReadSignal<MainView>,
     sys_info: ReadSignal<SystemInfo>,
-    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
-    max_history: usize,
-    max_history_time: Duration,
+    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
+    history_time: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "main-view";
-
     create_effect(move |_| {
         let mut title = Title::new("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
-            .range(vec![0, max_history - 1])
+            .range(vec![0, max_history.get() - 1])
             .tick_values(vec![0.0])
-            .tick_text(vec![format!("{} s", max_history_time.as_secs())])
+            .tick_text(vec![format!("{}", print_secs(history_time.get() as u64))])
             .line_color(black)
             .mirror(true);
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -353,7 +374,7 @@ fn MainPanel(
 
         let mut plot = match main_view.get() {
             MainView::Cpu => {
-                let plot = plot_cpu(&sys_util_history.get(), max_history);
+                let plot = plot_cpu(&sys_util_history.get(), max_history.get());
 
                 title = Title::new(&sys_info.get().cpu_brand.to_string());
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
@@ -366,7 +387,7 @@ fn MainPanel(
             }
 
             MainView::Mem => {
-                let plot = plot_mem(&sys_util_history.get(), max_history);
+                let plot = plot_mem(&sys_util_history.get(), max_history.get());
 
                 let mem_max = sys_util_history
                     .get()
@@ -387,7 +408,7 @@ fn MainPanel(
             }
 
             MainView::Gpu(gpu_id) => {
-                let plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
+                let plot = plot_gpu(&sys_util_history.get(), max_history.get(), gpu_id);
 
                 title = Title::new(&sys_info.get().gpu_names[gpu_id]);
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
@@ -416,7 +437,11 @@ fn MainPanel(
     });
 
     view! {
-        <div class="rightpanel" id=div_id></div>
+        <div class="rightpanel">
+            <div style="height:450px">
+                <div id=div_id/>
+            </div>
+        </div>
     }
 }
 
@@ -430,40 +455,96 @@ enum MainView {
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
-    let max_history_time = Duration::from_secs(60);
-    let max_history = (max_history_time.as_millis() / update_interval.as_millis()) as usize;
+    const TIME_OPTIONS: [u64; 7] = [
+        60,
+        5 * 60,
+        30 * 60,
+        3 * 3600,
+        6 * 3600,
+        12 * 3600,
+        24 * 3600,
+    ];
 
-    let (sys_util_history, set_sys_util) = create_signal(VecDeque::with_capacity(max_history));
-    let (sys_info, set_sys_info) = create_signal(SystemInfo::default());
-    let (main_view, set_main_view) = create_signal(MainView::Cpu);
+    const X_AXIS_POINTS: usize = TIME_OPTIONS[0] as usize;
+
+    let sys_util_history = RwSignal::new(VecDeque::new());
+    let sys_info = RwSignal::new(SystemInfo::default());
+    let main_view = RwSignal::new(MainView::Cpu);
+    let history_time = RwSignal::new(TIME_OPTIONS[0] as usize);
+    let get_history_time = move |ev| {
+        let value = event_target_value(&ev).parse().unwrap();
+        history_time.set(value);
+    };
 
     spawn_local(async move {
         let values = invoke("get_sys_info", JsValue::NULL).await;
         let values = serde_wasm_bindgen::from_value(values).unwrap();
-        set_sys_info.set(values);
+        sys_info.set(values);
     });
 
     let update_sys_util = move || {
         spawn_local(async move {
             let values = invoke("get_stats", JsValue::NULL).await;
-            let values = serde_wasm_bindgen::from_value(values).unwrap();
-            let mut history = sys_util_history.get();
+            let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
+            let mut history = sys_util_history.get_untracked();
             history.push_back(values);
-            if history.len() > max_history {
+            const SEC_24H: usize = 24 * 60 * 60;
+            if history.len() > SEC_24H {
                 history.pop_front();
             }
-            set_sys_util.set(history);
+            sys_util_history.set(history);
         });
     };
     update_sys_util();
 
     set_interval(update_sys_util, update_interval);
 
+    let sys_util_history_to_show = {
+        move || {
+            sys_util_history
+                .get()
+                .iter()
+                .rev()
+                .skip(sys_util_history.get().len() % (history_time.get() / X_AXIS_POINTS))
+                .take(history_time.get())
+                .step_by(history_time.get() / X_AXIS_POINTS)
+                .rev()
+                .cloned()
+                .collect()
+        }
+    }
+    .into_signal();
+
+    let sys_util_hisotry_side_panel = {
+        move || {
+            sys_util_history
+                .get()
+                .iter()
+                .take(TIME_OPTIONS[0] as usize)
+                .cloned()
+                .collect()
+        }
+    }
+    .into_signal();
+    let static_time = RwSignal::new(X_AXIS_POINTS);
+
     view! {
         <main class="container">
             <div>
-                <SidePanel main_view=set_main_view sys_util_history=sys_util_history max_history=max_history/>
-                <MainPanel main_view=main_view sys_util_history=sys_util_history max_history=max_history max_history_time=max_history_time sys_info=sys_info/>
+                <div class="leftpanel">
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=static_time.read_only()/>
+                    <div style="margin-top:10px">
+                        <b>"Period: "</b>
+                        <select on:input=get_history_time>
+                            {
+                                TIME_OPTIONS.into_iter()
+                                    .map(|x| view! { <option value=x> { print_secs(x) } </option> })
+                                    .collect_view()
+                            }
+                        </select>
+                    </div>
+                </div>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only() sys_info=sys_info.read_only() history_time=history_time.read_only()/>
             </div>
         </main>
     }
@@ -471,7 +552,7 @@ pub fn App() -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::print_bytes;
+    use super::{print_bytes, print_secs};
 
     #[test]
     fn print_bytes_test() {
@@ -484,6 +565,27 @@ mod tests {
         ];
         for (input, expected) in test_cases {
             assert_eq!(expected, print_bytes(input));
+        }
+    }
+
+    #[test]
+    fn print_time_test() {
+        let test_cases = [
+            (0, "0 s"),
+            (59, "59 s"),
+            (60, "1 min"),
+            (3 * 60, "3 min"),
+            (3 * 60 + 1, "3 min"),
+            (60, "1 min"),
+            (5 * 60, "5 min"),
+            (30 * 60, "30 min"),
+            (3 * 60 * 60, "3 h"),
+            (6 * 60 * 60, "6 h"),
+            (12 * 60 * 60, "12 h"),
+            (24 * 60 * 60, "24 h"),
+        ];
+        for (input, expected) in test_cases {
+            assert_eq!(expected, print_secs(input));
         }
     }
 }
