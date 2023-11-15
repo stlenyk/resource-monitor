@@ -353,6 +353,7 @@ fn MainPanel(
     sys_info: ReadSignal<SystemInfo>,
     sys_util_history: Signal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
+    history_time: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "main-view";
     create_effect(move |_| {
@@ -361,7 +362,7 @@ fn MainPanel(
         let x_axis = Axis::new()
             .range(vec![0, max_history.get() - 1])
             .tick_values(vec![0.0])
-            .tick_text(vec![format!("{}", print_secs(max_history.get() as u64))])
+            .tick_text(vec![format!("{}", print_secs(history_time.get() as u64))])
             .line_color(black)
             .mirror(true);
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -541,13 +542,25 @@ pub fn App() -> impl IntoView {
         }
     }
     .into_signal();
+
+    let sys_util_hisotry_side_panel = {
+        move || {
+            sys_util_history
+                .get()
+                .iter()
+                .take(TIME_OPTIONS[0] as usize)
+                .cloned()
+                .collect()
+        }
+    }
+    .into_signal();
     let static_time = RwSignal::new(X_AXIS_POINTS);
 
     view! {
         <main class="container">
             <div>
                 <div class="leftpanel">
-                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only()/>
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=static_time.read_only()/>
                     <div style="margin-top:10px">
                         <b>"Period: "</b>
                         <select on:input=get_history_time>
@@ -559,7 +572,7 @@ pub fn App() -> impl IntoView {
                         </select>
                     </div>
                 </div>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only() sys_info=sys_info.read_only()/>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only() sys_info=sys_info.read_only() history_time=history_time.read_only()/>
             </div>
         </main>
     }
