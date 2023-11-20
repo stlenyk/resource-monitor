@@ -142,6 +142,14 @@ impl SystemMonitor {
     }
 }
 
+use clap::Parser;
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct CliArgs {
+    #[arg(short, long, default_value_t = false)]
+    minimize: bool,
+}
+
 #[tauri::command]
 fn get_stats(state: tauri::State<SystemMonitorState>) -> SystemUtilization {
     state.get_state().unwrap().get_stats()
@@ -163,6 +171,8 @@ const TRAY_HIDE: &str = "hide";
 const TRAY_SHOW: &str = "show";
 
 fn main() {
+    let args = CliArgs::parse();
+
     let tray_menu = SystemTrayMenu::new()
         .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"))
         .add_native_item(SystemTrayMenuItem::Separator)
@@ -185,6 +195,12 @@ fn main() {
     #[allow(clippy::single_match)]
     builder
         .manage(SystemMonitorState::new())
+        .setup(move |app| {
+            if args.minimize {
+                app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+            }
+            Ok(())
+        })
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
