@@ -184,6 +184,21 @@ fn main() {
 
     #[allow(clippy::single_match)]
     builder
+        .setup(|app| {
+            match app.get_cli_matches() {
+                Ok(args) => {
+                    let minimize = args.args.get("minimize").unwrap().value.as_bool().unwrap();
+                    if minimize {
+                        app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+                    }
+                }
+                Err(clap_msg) => {
+                    println!("{}", clap_msg);
+                    std::process::exit(1)
+                }
+            }
+            Ok(())
+        })
         .manage(SystemMonitorState::new())
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {

@@ -30,6 +30,13 @@
         "icons/icon.ico"
       ]
     },
+    "cli": {
+      "args": [
+        {
+          "name": "minimize"
+        }
+      ]
+    },
     "security": {
       "csp": null
     },
