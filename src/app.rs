@@ -501,16 +501,23 @@ pub fn App() -> impl IntoView {
 
     let sys_util_history_to_show = {
         move || {
-            sys_util_history
-                .get()
-                .iter()
-                .rev()
-                .skip(sys_util_history.get().len() % (history_time.get() / X_AXIS_POINTS))
-                .take(history_time.get())
-                .step_by(history_time.get() / X_AXIS_POINTS)
-                .rev()
-                .cloned()
-                .collect()
+            let sys_util_history = sys_util_history.get();
+            let step = history_time.get() / X_AXIS_POINTS;
+
+            if sys_util_history.len() < step {
+                // So that there are proper y axes values for long periods such as 24h
+                sys_util_history.iter().take(1).cloned().collect()
+            } else {
+                sys_util_history
+                    .iter()
+                    .rev()
+                    .skip(sys_util_history.len() % step)
+                    .take(history_time.get())
+                    .step_by(step)
+                    .rev()
+                    .cloned()
+                    .collect()
+            }
         }
     }
     .into_signal();
