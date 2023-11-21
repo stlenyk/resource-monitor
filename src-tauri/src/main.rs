@@ -146,7 +146,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct CliArgs {
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false, help = "Start minimized to tray")]
     minimize: bool,
 }
 
