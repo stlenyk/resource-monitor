@@ -161,8 +161,8 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 }
 
 use tauri::{
-    AppHandle, CustomMenuItem, Manager, RunEvent, Runtime, SystemTray, SystemTrayEvent,
-    SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
+    AppHandle, CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    SystemTrayMenuItem, WindowEvent,
 };
 
 const WINDOW_ID: &str = "main";
