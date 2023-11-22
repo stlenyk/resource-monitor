@@ -161,8 +161,8 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 }
 
 use tauri::{
-    AppHandle, CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    SystemTrayMenuItem, WindowEvent,
+    AppHandle, CustomMenuItem, Manager, RunEvent, Runtime, SystemTray, SystemTrayEvent,
+    SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
 };
 
 const WINDOW_ID: &str = "main";
@@ -177,6 +177,13 @@ fn show_window(app: &AppHandle) {
     app.tray_handle()
         .get_item(TRAY_HIDE)
         .set_enabled(true)
+        .unwrap();
+}
+fn hide_window(app: &AppHandle) {
+    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+    app.tray_handle()
+        .get_item(TRAY_HIDE)
+        .set_enabled(false)
         .unwrap();
 }
 
@@ -205,7 +212,7 @@ fn main() {
         .manage(SystemMonitorState::new())
         .setup(move |app| {
             if args.minimize {
-                app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+                hide_window(&app.app_handle());
             }
             Ok(())
         })
@@ -213,13 +220,7 @@ fn main() {
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
                 TRAY_QUIT => std::process::exit(0),
-                TRAY_HIDE => {
-                    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
-                    app.tray_handle()
-                        .get_item(TRAY_HIDE)
-                        .set_enabled(false)
-                        .unwrap();
-                }
+                TRAY_HIDE => hide_window(app),
                 TRAY_SHOW => show_window(app),
                 _ => {}
             },
@@ -227,7 +228,7 @@ fn main() {
         })
         .on_window_event(|event| {
             if let WindowEvent::CloseRequested { api, .. } = event.event() {
-                event.window().hide().unwrap();
+                hide_window(&event.window().app_handle());
                 api.prevent_close();
             }
         })
