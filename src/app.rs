@@ -537,9 +537,17 @@ pub fn App() -> impl IntoView {
     .into_signal();
     let static_time = RwSignal::new(X_AXIS_POINTS);
 
+    let network_dw = move || {
+        sys_util_history
+            .get()
+            .back()
+            .map_or(0, |util| util.network_throughput.download / (1024 * 1024))
+    };
+
     view! {
         <main class="container">
             <div>
+                <h2>"Network " {network_dw}</h2>
                 <div class="leftpanel">
                     <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=static_time.read_only()/>
                     <div style="margin-top:10px">

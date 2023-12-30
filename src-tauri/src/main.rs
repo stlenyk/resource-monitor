@@ -3,11 +3,12 @@
 
 #[path = "../../src/send_types.rs"]
 mod send_types;
-use send_types::{CpuCore, Gpu, SystemInfo, SystemUtilization};
+use send_types::{CpuCore, Gpu, NewtorkThroughput, SystemInfo, SystemUtilization};
 
 use std::{
-    sync::{Mutex, MutexGuard, PoisonError},
-    time::Duration,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    thread,
+    time::{Duration, Instant},
 };
 
 use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
@@ -18,6 +19,7 @@ struct SystemMonitor {
     nvml: Option<Nvml>,
     sys: System,
     sys_info: SystemInfo,
+    network: Arc<Mutex<NewtorkThroughput>>,
 }
 
 struct SystemMonitorState(Mutex<SystemMonitor>);
@@ -36,10 +38,52 @@ impl SystemMonitorState {
 
 impl SystemMonitor {
     fn new() -> Self {
+        sudo::escalate_if_needed().unwrap();
+        let interface = pcap::Device::lookup().unwrap().unwrap();
+        let mut cap = pcap::Capture::from_device(interface)
+            .unwrap()
+            .promisc(true)
+            .snaplen(5000)
+            .open()
+            .unwrap();
+        let network = Arc::new(Mutex::new(NewtorkThroughput::new()));
+        let network_thread = network.clone();
+
+        thread::spawn(move || {
+            let my_mac_addr = mac_address::get_mac_address().unwrap().unwrap().bytes();
+            let mut t0 = Instant::now();
+            let (mut download, mut upload) = (0, 0);
+            loop {
+                if let Ok(packet) = cap.next_packet() {
+                    if let Some(ethernet_packet) =
+                        pnet::packet::ethernet::EthernetPacket::new(packet.data)
+                    {
+                        let dst_ip = ethernet_packet.get_destination();
+                        let dst_ip = [dst_ip.0, dst_ip.1, dst_ip.2, dst_ip.3, dst_ip.4, dst_ip.5];
+                        if dst_ip == my_mac_addr {
+                            download += packet.header.len;
+                        } else {
+                            upload += packet.header.len;
+                        }
+                    }
+                }
+
+                // TODO this is hardcoded and doesn't repsond to changes in the frontend
+                // TODO 2: account for elapsed >> 1s
+                if t0.elapsed() >= Duration::from_millis(1000) {
+                    t0 = Instant::now();
+                    let mut network = network_thread.lock().unwrap();
+                    network.download = download;
+                    network.upload = upload;
+                    (download, upload) = (0, 0);
+                }
+            }
+        });
+
         let sys = System::new_all();
         let cpuid = CpuId::new();
 
-        let cpu_brand = sys.cpus().get(0).map_or("", CpuExt::brand).to_owned();
+        let cpu_brand = sys.cpus().first().map_or("", CpuExt::brand).to_owned();
         let cpu_core_count = sys.cpus().len() as u32;
         let max_mem = sys.total_memory();
 
@@ -82,10 +126,12 @@ impl SystemMonitor {
             sys,
             nvml: Nvml::init().ok(),
             sys_info,
+            network,
         }
     }
 
     fn get_stats(&mut self) -> SystemUtilization {
+        // println!("{:?}", self.network);
         self.sys
             .refresh_cpu_specifics(CpuRefreshKind::new().with_cpu_usage().with_frequency());
         self.sys.refresh_processes();
@@ -131,6 +177,7 @@ impl SystemMonitor {
             vec![]
         };
 
+        let network_throughput = self.network.lock().unwrap().clone();
         SystemUtilization {
             cpus,
             mem,
@@ -138,6 +185,7 @@ impl SystemMonitor {
             mem_max,
             gpus,
             up_time,
+            network_throughput,
         }
     }
 }

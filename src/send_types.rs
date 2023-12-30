@@ -10,12 +10,28 @@ pub struct SystemUtilization {
     pub gpus: Vec<Gpu>,
     pub up_time: Duration,
     pub processes: u32,
+    pub network_throughput: NewtorkThroughput
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct CpuCore {
     pub usage: f32,
     pub freq: u64,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+pub struct NewtorkThroughput {
+    pub download: u32,
+    pub upload: u32,
+}
+
+impl NewtorkThroughput {
+    pub fn new() -> Self {
+        Self {
+            download: 0,
+            upload: 0,
+        }
+    }
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
