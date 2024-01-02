@@ -56,7 +56,7 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
     * For release build run
 
         ```sh
-        cargo tauri dev
+        cargo tauri build
         ```
 
         The app binary will be located in `target/release`.
