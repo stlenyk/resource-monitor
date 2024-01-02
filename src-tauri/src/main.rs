@@ -146,7 +146,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct CliArgs {
-    #[arg(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false, help = "Start minimized to tray")]
     minimize: bool,
 }
 
@@ -161,7 +161,7 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 }
 
 use tauri::{
-    CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    AppHandle, CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
     SystemTrayMenuItem, WindowEvent,
 };
 
@@ -169,6 +169,23 @@ const WINDOW_ID: &str = "main";
 const TRAY_QUIT: &str = "quit";
 const TRAY_HIDE: &str = "hide";
 const TRAY_SHOW: &str = "show";
+
+fn show_window(app: &AppHandle) {
+    let window = app.get_window(WINDOW_ID).unwrap();
+    window.show().unwrap();
+    window.set_focus().unwrap();
+    app.tray_handle()
+        .get_item(TRAY_HIDE)
+        .set_enabled(true)
+        .unwrap();
+}
+fn hide_window(app: &AppHandle) {
+    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+    app.tray_handle()
+        .get_item(TRAY_HIDE)
+        .set_enabled(false)
+        .unwrap();
+}
 
 fn main() {
     let args = CliArgs::parse();
@@ -184,9 +201,7 @@ fn main() {
         tauri::Builder::default()
             // This plugin breaks `cargo tauri dev` reload
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-                let window = app.get_window(WINDOW_ID).unwrap();
-                window.show().unwrap();
-                window.set_focus().unwrap();
+                show_window(app);
             }))
     } else {
         tauri::Builder::default()
@@ -197,39 +212,23 @@ fn main() {
         .manage(SystemMonitorState::new())
         .setup(move |app| {
             if args.minimize {
-                app.get_window(WINDOW_ID).unwrap().hide().unwrap();
+                hide_window(&app.app_handle());
             }
             Ok(())
         })
         .system_tray(tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-                TRAY_QUIT => {
-                    std::process::exit(0);
-                }
-                TRAY_HIDE | TRAY_SHOW => {
-                    let window = app.get_window(WINDOW_ID).unwrap();
-                    let item_handle = app.tray_handle().get_item(TRAY_HIDE);
-                    match id.as_str() {
-                        TRAY_HIDE => {
-                            window.hide().unwrap();
-                            item_handle.set_enabled(false).unwrap();
-                        }
-                        TRAY_SHOW => {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
-                            item_handle.set_enabled(true).unwrap();
-                        }
-                        _ => unreachable!(),
-                    }
-                }
+                TRAY_QUIT => std::process::exit(0),
+                TRAY_HIDE => hide_window(app),
+                TRAY_SHOW => show_window(app),
                 _ => {}
             },
             _ => {}
         })
         .on_window_event(|event| {
             if let WindowEvent::CloseRequested { api, .. } = event.event() {
-                event.window().hide().unwrap();
+                hide_window(&event.window().app_handle());
                 api.prevent_close();
             }
         })
