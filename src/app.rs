@@ -465,15 +465,15 @@ pub fn App() -> impl IntoView {
         24 * 3600,
     ];
 
-    const X_AXIS_POINTS: usize = TIME_OPTIONS[0] as usize;
-
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
     let main_view = RwSignal::new(MainView::Cpu);
     let history_time = RwSignal::new(TIME_OPTIONS[0] as usize);
+    let x_axis_points = RwSignal::new(TIME_OPTIONS[0] as usize);
     let get_history_time = move |ev| {
         let value = event_target_value(&ev).parse().unwrap();
         history_time.set(value);
+        x_axis_points.set(value.min(TIME_OPTIONS[1] as usize))
     };
 
     spawn_local(async move {
@@ -501,8 +501,9 @@ pub fn App() -> impl IntoView {
 
     let sys_util_history_to_show = {
         move || {
+            let history_time = history_time.get();
             let sys_util_history = sys_util_history.get();
-            let step = history_time.get() / X_AXIS_POINTS;
+            let step = history_time.div_ceil(x_axis_points.get());
 
             if sys_util_history.len() < step {
                 // So that there are proper y axes values for long periods such as 24h
@@ -512,7 +513,7 @@ pub fn App() -> impl IntoView {
                     .iter()
                     .rev()
                     .skip(sys_util_history.len() % step)
-                    .take(history_time.get())
+                    .take(history_time)
                     .step_by(step)
                     .rev()
                     .cloned()
@@ -535,13 +536,12 @@ pub fn App() -> impl IntoView {
         }
     }
     .into_signal();
-    let static_time = RwSignal::new(X_AXIS_POINTS);
 
     view! {
         <main class="container">
             <div>
                 <div class="leftpanel">
-                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=static_time.read_only()/>
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=x_axis_points.read_only()/>
                     <div style="margin-top:10px">
                         <b>"Period: "</b>
                         <select on:input=get_history_time>
@@ -553,7 +553,7 @@ pub fn App() -> impl IntoView {
                         </select>
                     </div>
                 </div>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=static_time.read_only() sys_info=sys_info.read_only() history_time=history_time.read_only()/>
+                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=x_axis_points.read_only() sys_info=sys_info.read_only() history_time=history_time.read_only()/>
             </div>
         </main>
     }
