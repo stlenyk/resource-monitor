@@ -191,10 +191,10 @@ fn main() {
     let args = CliArgs::parse();
 
     let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"))
-        .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(CustomMenuItem::new(TRAY_HIDE, "Hide"))
-        .add_item(CustomMenuItem::new(TRAY_SHOW, "Show"));
+        .add_item(CustomMenuItem::new(TRAY_SHOW, "Show"))
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"));
     let tray = SystemTray::new().with_menu(tray_menu);
 
     let builder = if cfg!(not(debug_assertions)) {
