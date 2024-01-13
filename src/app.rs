@@ -20,7 +20,7 @@ extern "C" {
 }
 
 // Assumes that the number of cpus doesn't change and may panic otherwise.
-fn plot_cpu(sys_util_history: &VecDeque<SystemUtilization>, max_history: usize) -> Plot {
+fn plot_cpu(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
     let mut plot = Plot::new();
 
     let config = Configuration::new().static_plot(true).responsive(true);
@@ -33,7 +33,7 @@ fn plot_cpu(sys_util_history: &VecDeque<SystemUtilization>, max_history: usize) 
         .map(|util| util.cpus.clone())
         .collect::<Vec<_>>();
 
-    if let Some(history_point) = cpu_history.get(0) {
+    if let Some(history_point) = cpu_history.first() {
         let cpu_count = history_point.len();
         let mut traces: Vec<Vec<f32>> = vec![Vec::new(); cpu_count];
 
@@ -95,17 +95,13 @@ fn plot_generic<T: Clone + Serialize + 'static>(
     plot
 }
 
-fn plot_mem(sys_util_history: &VecDeque<SystemUtilization>, max_history: usize) -> Plot {
+fn plot_mem(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
     let plot_values = sys_util_history.iter().map(|util| util.mem).collect();
     let color = Rgb::new(101, 39, 190);
     plot_generic(plot_values, max_history, color)
 }
 
-fn plot_gpu(
-    sys_util_history: &VecDeque<SystemUtilization>,
-    max_history: usize,
-    gpu_id: usize,
-) -> Plot {
+fn plot_gpu(sys_util_history: &[SystemUtilization], max_history: usize, gpu_id: usize) -> Plot {
     let plot_values = sys_util_history
         .iter()
         .map(|util| util.gpus[gpu_id].usage)
@@ -116,7 +112,7 @@ fn plot_gpu(
 
 #[component]
 fn PlotCpuMini(
-    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<Vec<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-cpu";
@@ -149,7 +145,7 @@ fn PlotCpuMini(
 
 #[component]
 fn PlotMemMini(
-    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<Vec<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-mem";
@@ -158,7 +154,7 @@ fn PlotMemMini(
 
         let mut plot = plot_mem(&sys_util_history.get(), max_history);
 
-        let max_mem = if let Some(sys_util) = sys_util_history.get().get(0) {
+        let max_mem = if let Some(sys_util) = sys_util_history.get().first() {
             sys_util.mem_max
         } else {
             0
@@ -188,15 +184,14 @@ fn PlotMemMini(
 
 #[component]
 fn PlotGpusMini(
-    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<Vec<SystemUtilization>>,
     max_history: ReadSignal<usize>,
     main_view: WriteSignal<MainView>,
 ) -> impl IntoView {
     view! {
         <For
             each=move || 0..sys_util_history
-                .get()
-                .get(0)
+                .get().first()
                 .map_or(0, |sys_util| sys_util.gpus.len())
             key=|gpu_id| *gpu_id
             children=move |gpu_id| {
@@ -237,7 +232,7 @@ fn PlotGpusMini(
                 });
 
                 let gpu_descr = move || {
-                    if let Some(last) = sys_util_history.get().back() {
+                    if let Some(last) = sys_util_history.get().last() {
                         let gpu = last.gpus[gpu_id].clone();
                         format!("{}% ({} ℃)", gpu.usage, gpu.temp)
                     } else {
@@ -262,12 +257,12 @@ fn PlotGpusMini(
 #[component]
 fn SidePanel(
     main_view: WriteSignal<MainView>,
-    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<Vec<SystemUtilization>>,
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let cpu_descr = move || {
         let sys_util_history = sys_util_history.get();
-        let (usage, freq) = if let Some(sys_util) = sys_util_history.back() {
+        let (usage, freq) = if let Some(sys_util) = sys_util_history.last() {
             let cpus = &sys_util.cpus;
             let usage = cpus.iter().map(|cpu| cpu.usage).sum::<f32>() / cpus.len() as f32;
             let freq_mhz = cpus.iter().map(|cpu| cpu.freq).sum::<u64>() / cpus.len() as u64;
@@ -281,7 +276,7 @@ fn SidePanel(
 
     let mem_descr = move || {
         let sys_util_history = sys_util_history.get();
-        if let Some(sys_util) = sys_util_history.back() {
+        if let Some(sys_util) = sys_util_history.last() {
             let gb = 1_073_741_824.0;
             let mem_curr = sys_util.mem as f32 / gb;
             let mem_max = sys_util.mem_max as f32 / gb;
@@ -351,7 +346,7 @@ fn print_secs(value: u64) -> String {
 fn MainPanel(
     main_view: ReadSignal<MainView>,
     sys_info: ReadSignal<SystemInfo>,
-    sys_util_history: Signal<VecDeque<SystemUtilization>>,
+    sys_util_history: Signal<Vec<SystemUtilization>>,
     max_history: ReadSignal<usize>,
     history_time: ReadSignal<usize>,
 ) -> impl IntoView {
@@ -391,7 +386,7 @@ fn MainPanel(
 
                 let mem_max = sys_util_history
                     .get()
-                    .get(0)
+                    .first()
                     .map_or(0, |sys_util| sys_util.mem_max);
                 let y_ticks_values: Vec<_> =
                     y_ticks.iter().map(|y| y * mem_max as f64 / 100.0).collect();
@@ -455,8 +450,10 @@ enum MainView {
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
-    const TIME_OPTIONS: [u64; 7] = [
+
+    const TIME_OPTIONS: [u64; 8] = [
         60,
+        73,
         5 * 60,
         30 * 60,
         3 * 3600,
@@ -488,7 +485,7 @@ pub fn App() -> impl IntoView {
             let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
             sys_util_history.update(|history| {
                 history.push_back(values);
-                if history.len() > TIME_OPTIONS[TIME_OPTIONS.len()-1] as usize {
+                if history.len() > TIME_OPTIONS[TIME_OPTIONS.len() - 1] as usize {
                     history.pop_front();
                 }
             });
