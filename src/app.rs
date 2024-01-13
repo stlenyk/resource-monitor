@@ -486,13 +486,12 @@ pub fn App() -> impl IntoView {
         spawn_local(async move {
             let values = invoke("get_stats", JsValue::NULL).await;
             let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
-            let mut history = sys_util_history.get_untracked();
-            history.push_back(values);
-            const SEC_24H: usize = 24 * 60 * 60;
-            if history.len() > SEC_24H {
-                history.pop_front();
-            }
-            sys_util_history.set(history);
+            sys_util_history.update(|history| {
+                history.push_back(values);
+                if history.len() > TIME_OPTIONS[TIME_OPTIONS.len()-1] as usize {
+                    history.pop_front();
+                }
+            });
         });
     };
     update_sys_util();
