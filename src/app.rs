@@ -451,9 +451,8 @@ enum MainView {
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
 
-    const TIME_OPTIONS: [u64; 8] = [
+    const TIME_OPTIONS: [u64; 7] = [
         60,
-        73,
         5 * 60,
         30 * 60,
         3 * 3600,
