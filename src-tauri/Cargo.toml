@@ -1,8 +1,8 @@
 [package]
 name = "resource-monitor"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0"
+description = "A GUI resource monitor"
+authors = ["stlenyk"]
 license = ""
 repository = ""
 edition = "2021"
