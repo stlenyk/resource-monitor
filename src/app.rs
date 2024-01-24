@@ -516,27 +516,30 @@ pub fn App() -> impl IntoView {
             }
         }
     }
-    .into_signal();
+    .into();
 
-    let sys_util_hisotry_side_panel = {
+    const X_AXIS_LEN_STATIC: usize = TIME_OPTIONS[0] as usize;
+    let sys_util_history_side_panel = {
         move || {
             sys_util_history
                 .get()
                 .iter()
                 .rev()
-                .take(TIME_OPTIONS[0] as usize)
+                .take(X_AXIS_LEN_STATIC)
                 .rev()
                 .cloned()
                 .collect()
         }
     }
-    .into_signal();
+    .into();
+
+    let (x_axis_points_static, _) = RwSignal::new(X_AXIS_LEN_STATIC).split();
 
     view! {
         <main class="container">
             <div>
                 <div class="leftpanel">
-                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=x_axis_points.read_only()/>
+                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_history_side_panel max_history=x_axis_points_static/>
                     <div style="margin-top:10px">
                         <b>"Period: "</b>
                         <select on:input=get_history_time>
