@@ -60,3 +60,43 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
         ```
 
         The app binary will be located in `target/release`.
+
+## Docker
+
+1. build
+
+    ```sh
+    docker build -t resource-monitor .
+    ```
+
+2. run
+
+    ```sh
+    docker run \
+        --rm \
+        -it \
+        -v $PWD:$PWD \
+        -w $PWD \
+        -e DISPLAY=unix$DISPLAY \
+        -v $XAUTHORITY:/root/.Xauthority \
+        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        resource-monitor
+    ```
+
+    The last three options:
+
+    ```sh
+    -e DISPLAY=unix$DISPLAY \
+    -v $XAUTHORITY:/root/.Xauthority \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    ```
+
+    are only needed for display support.
+
+All files created by the docker container be will be owned by root. To remedy that run:
+
+```sh
+sudo chown -R $(id -u):$(id -g) .
+```
+
+which will transfer ownership of all files in current directory to the current user and group.
