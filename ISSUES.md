@@ -82,5 +82,32 @@ fn main() {
         sleep(Duration::from_millis(1000));
     }
 }
+```
 
+## Plotly issue
+
+Plotly's _responsive_ (`Configuration::new().responsive(true)`) causes content below it to stutter.
+
+### Details
+
+Content vanishes on every other update interval
+
+`responsive(true)` vs `responsive(false)` outermost div diff on first render/update interval:
+
+```html
+<div [...] style="[...] width: 100%; height: 450px;">
+<div [...] style="[...] width: 1204px; height: 450px;">
+```
+
+Open dev tools on tauri app:
+
+* every other update interval `"height"` changes between `100%` and `450px` (???)
+* and so bottom content gets same positioning as the plot but underneath it
+
+### Temporal fix
+
+wrap plot div in
+
+```html
+<div style="height: 450px">
 ```

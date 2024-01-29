@@ -138,9 +138,7 @@ fn PlotCpuMini(
         });
     });
 
-    view! {
-        <div class="leftmini" id={div_id}></div>
-    }
+    view! { <div class="leftmini" id=div_id></div> }
 }
 
 #[component]
@@ -177,9 +175,7 @@ fn PlotMemMini(
         });
     });
 
-    view! {
-        <div class="leftmini" id={div_id}></div>
-    }
+    view! { <div class="leftmini" id=div_id></div> }
 }
 
 #[component]
@@ -190,47 +186,34 @@ fn PlotGpusMini(
 ) -> impl IntoView {
     view! {
         <For
-            each=move || 0..sys_util_history
-                .get().first()
-                .map_or(0, |sys_util| sys_util.gpus.len())
+            each=move || 0..sys_util_history.get().first().map_or(0, |sys_util| sys_util.gpus.len())
             key=|gpu_id| *gpu_id
             children=move |gpu_id| {
-                // TODO is there a way to pass around `let div_id = format!("side-gpu-{}", gpu_id)` that doesn't require 2 clone()s:
-                // let div_id = format!("side-gpu-{}", gpu_id);
-                // let div_id1 = div_id.clone();
-                // create_effect(move |_| {
-                //     ...
-                //     let div_id2 = div_id1.clone();
-                //     spawn_local(async move {
-                //         react(&div_id2, &plot).await;
-                //     });
-                // });
-                create_effect(move |_| {
-                    let max_history = max_history.get();
-
-                    let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
-
-                    let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
-                    let y_axis = Axis::new()
-                        .range(vec![0, 100])
-                        .tick_values(y_ticks);
-                    let x_axis = Axis::new()
-                        .range(vec![0, max_history - 1])
-                        .tick_values(vec![]);
-                    let margin = Margin::new().left(0).right(0).top(0).bottom(0);
-                    let layout = plot
-                        .layout()
-                        .clone()
-                        .margin(margin)
-                        .y_axis(y_axis)
-                        .x_axis(x_axis);
-                    plot.set_layout(layout);
-
-                    spawn_local(async move {
-                        react(&format!("side-gpu-{}", gpu_id), &plot).await;
+                let div_id = format!("side-gpu-{}", gpu_id);
+                {
+                    let div_id = div_id.clone();
+                    create_effect(move |_| {
+                        let max_history = max_history.get();
+                        let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
+                        let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
+                        let y_axis = Axis::new().range(vec![0, 100]).tick_values(y_ticks);
+                        let x_axis = Axis::new()
+                            .range(vec![0, max_history - 1])
+                            .tick_values(vec![]);
+                        let margin = Margin::new().left(0).right(0).top(0).bottom(0);
+                        let layout = plot
+                            .layout()
+                            .clone()
+                            .margin(margin)
+                            .y_axis(y_axis)
+                            .x_axis(x_axis);
+                        plot.set_layout(layout);
+                        let div_id = div_id.clone();
+                        spawn_local(async move {
+                            react(&div_id, &plot).await;
+                        });
                     });
-                });
-
+                }
                 let gpu_descr = move || {
                     if let Some(last) = sys_util_history.get().last() {
                         let gpu = last.gpus[gpu_id].clone();
@@ -240,8 +223,8 @@ fn PlotGpusMini(
                     }
                 };
                 view! {
-                    <button on:click=move |_| {main_view.set(MainView::Gpu(gpu_id))} >
-                        <div class="leftmini" id=format!("side-gpu-{}", gpu_id)></div>
+                    <button on:click=move |_| { main_view.set(MainView::Gpu(gpu_id)) }>
+                        <div class="leftmini" id=div_id></div>
                         <div class="rightmini">
                             <div class="rightminititle">{format!("GPU {}", gpu_id)}</div>
                             <br/>
@@ -293,7 +276,7 @@ fn SidePanel(
 
     view! {
         <div>
-            <button on:click=move |_| {main_view.set(MainView::Cpu)}>
+            <button on:click=move |_| { main_view.set(MainView::Cpu) }>
                 <PlotCpuMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
                     <div class="rightminititle">CPU</div>
@@ -302,18 +285,18 @@ fn SidePanel(
                 </div>
             </button>
 
-            <button on:click=move |_| {main_view.set(MainView::Mem)}>
+            <button on:click=move |_| { main_view.set(MainView::Mem) }>
                 <PlotMemMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
-                <div class="rightminititle">Memory</div>
-                <br/>
-                {mem_descr}
+                    <div class="rightminititle">Memory</div>
+                    <br/>
+                    {mem_descr}
                 </div>
             </button>
 
             <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
 
-            // <img src="public/rzulta.png" style="width:100%; height:auto"/>
+        // <img src="public/rzulta.png" style="width:100%; height:auto"/>
         </div>
     }
 }
@@ -434,7 +417,7 @@ fn MainPanel(
     view! {
         <div class="rightpanel">
             <div style="height:450px">
-                <div id=div_id/>
+                <div id=div_id></div>
             </div>
         </div>
     }
@@ -516,39 +499,53 @@ pub fn App() -> impl IntoView {
             }
         }
     }
-    .into_signal();
+    .into();
 
-    let sys_util_hisotry_side_panel = {
+    const X_AXIS_LEN_STATIC: usize = TIME_OPTIONS[0] as usize;
+    let sys_util_history_side_panel = {
         move || {
             sys_util_history
                 .get()
                 .iter()
                 .rev()
-                .take(TIME_OPTIONS[0] as usize)
+                .take(X_AXIS_LEN_STATIC)
                 .rev()
                 .cloned()
                 .collect()
         }
     }
-    .into_signal();
+    .into();
+
+    let (x_axis_points_static, _) = RwSignal::new(X_AXIS_LEN_STATIC).split();
 
     view! {
         <main class="container">
             <div>
                 <div class="leftpanel">
-                    <SidePanel main_view=main_view.write_only() sys_util_history=sys_util_hisotry_side_panel max_history=x_axis_points.read_only()/>
+                    <SidePanel
+                        main_view=main_view.write_only()
+                        sys_util_history=sys_util_history_side_panel
+                        max_history=x_axis_points_static
+                    />
                     <div style="margin-top:10px">
                         <b>"Period: "</b>
                         <select on:input=get_history_time>
-                            {
-                                TIME_OPTIONS.into_iter()
-                                    .map(|x| view! { <option value=x> { print_secs(x) } </option> })
-                                    .collect_view()
-                            }
+
+                            {TIME_OPTIONS
+                                .into_iter()
+                                .map(|x| view! { <option value=x>{print_secs(x)}</option> })
+                                .collect_view()}
+
                         </select>
                     </div>
                 </div>
-                <MainPanel main_view=main_view.read_only() sys_util_history=sys_util_history_to_show max_history=x_axis_points.read_only() sys_info=sys_info.read_only() history_time=history_time.read_only()/>
+                <MainPanel
+                    main_view=main_view.read_only()
+                    sys_util_history=sys_util_history_to_show
+                    max_history=x_axis_points.read_only()
+                    sys_info=sys_info.read_only()
+                    history_time=history_time.read_only()
+                />
             </div>
         </main>
     }

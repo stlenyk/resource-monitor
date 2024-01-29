@@ -11,7 +11,6 @@ use std::{
 };
 
 use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
-use raw_cpuid::CpuId;
 use sysinfo::{CpuExt, CpuRefreshKind, System, SystemExt};
 
 struct SystemMonitor {
@@ -37,9 +36,8 @@ impl SystemMonitorState {
 impl SystemMonitor {
     fn new() -> Self {
         let sys = System::new_all();
-        let cpuid = CpuId::new();
 
-        let cpu_brand = sys.cpus().get(0).map_or("", CpuExt::brand).to_owned();
+        let cpu_brand = sys.cpus().first().map_or("", CpuExt::brand).to_owned();
         let cpu_core_count = sys.cpus().len() as u32;
         let max_mem = sys.total_memory();
 
@@ -58,14 +56,25 @@ impl SystemMonitor {
             (0, Vec::new())
         };
 
-        let cache_l1 = cpuid
-            .get_l1_cache_and_tlb_info()
-            .map(|info| info.dcache_size());
-        let (cache_l2, cache_l3) = cpuid
-            .get_l2_l3_cache_and_tlb_info()
-            .map_or((None, None), |info| {
-                (Some(info.l2cache_size()), Some(info.l3cache_size()))
-            });
+        let (cache_l1, cache_l2, cache_l3) = {
+            #[cfg(all(target_arch = "x86_64", not(target_env = "sgx")))]
+            {
+                let cpuid = raw_cpuid::CpuId::new();
+                let l1 = cpuid
+                    .get_l1_cache_and_tlb_info()
+                    .map(|info| info.dcache_size());
+                let (l2, l3) = cpuid
+                    .get_l2_l3_cache_and_tlb_info()
+                    .map_or((None, None), |info| {
+                        (Some(info.l2cache_size()), Some(info.l3cache_size()))
+                    });
+                (l1, l2, l3)
+            }
+            #[cfg(not(all(target_arch = "x86_64", not(target_env = "sgx"))))]
+            {
+                (None, None, None)
+            }
+        };
 
         let sys_info = SystemInfo {
             cpu_brand,
