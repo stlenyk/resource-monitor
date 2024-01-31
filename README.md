@@ -77,6 +77,7 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
         -it \
         -v $PWD:$PWD \
         -w $PWD \
+        --gpus all
         -e DISPLAY=unix$DISPLAY \
         -v $XAUTHORITY:/root/.Xauthority \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
