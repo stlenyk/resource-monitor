@@ -77,22 +77,29 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
         -it \
         -v $PWD:$PWD \
         -w $PWD \
-        --gpus all
+        --gpus all \
         -e DISPLAY=unix$DISPLAY \
         -v $XAUTHORITY:/root/.Xauthority \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         resource-monitor
     ```
 
-    The last three options:
+    * Passing GPUs to docker container (via `--gpus all`) requires `nvidia-container-toolkit`. For Ubuntu run:
 
-    ```sh
-    -e DISPLAY=unix$DISPLAY \
-    -v $XAUTHORITY:/root/.Xauthority \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    ```
+        ```sh
+        sudo apt install nvidia-container-toolkit
+        sudo systemctl restart docker
+        ```
 
-    are only needed for display support.
+    * The last three options:
+
+        ```sh
+        -e DISPLAY=unix$DISPLAY \
+        -v $XAUTHORITY:/root/.Xauthority \
+        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        ```
+
+        are only needed for display support.
 
 All files created by the docker container be will be owned by root. To remedy that run:
 
