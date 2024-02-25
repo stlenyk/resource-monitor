@@ -11,7 +11,7 @@ use std::{
 };
 
 use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
-use sysinfo::{CpuExt, CpuRefreshKind, System, SystemExt};
+use sysinfo::{Cpu, CpuRefreshKind, System};
 
 struct SystemMonitor {
     nvml: Option<Nvml>,
@@ -37,7 +37,7 @@ impl SystemMonitor {
     fn new() -> Self {
         let sys = System::new_all();
 
-        let cpu_brand = sys.cpus().first().map_or("", CpuExt::brand).to_owned();
+        let cpu_brand = sys.cpus().first().map_or("", Cpu::brand).to_owned();
         let cpu_core_count = sys.cpus().len() as u32;
         let max_mem = sys.total_memory();
 
@@ -111,7 +111,7 @@ impl SystemMonitor {
         let processes = self.sys.processes().len() as u32;
         let mem = self.sys.used_memory();
         let mem_max = self.sys.total_memory();
-        let up_time = Duration::from_secs(self.sys.uptime());
+        let up_time = Duration::from_secs(System::uptime());
 
         let gpus = if let Some(nvml) = &self.nvml {
             let mut gpus_util = Vec::new();
