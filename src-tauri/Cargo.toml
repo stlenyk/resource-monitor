@@ -13,14 +13,14 @@ edition = "2021"
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "1.5", features = ["shell-open", "system-tray"] }
+tauri = { version = "1.6", features = ["shell-open", "system-tray"] }
 tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sysinfo = "0.30.5"
+sysinfo = "0.30.7"
 nvml-wrapper = "0.10.0"
 raw-cpuid = "11.0.1"
-clap = { version = "4.5.1", features = ["derive"] }
+clap = { version = "4.5.2", features = ["derive"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
