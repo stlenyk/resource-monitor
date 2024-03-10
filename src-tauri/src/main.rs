@@ -3,20 +3,21 @@
 
 #[path = "../../src/send_types.rs"]
 mod send_types;
-use send_types::{CpuCore, Gpu, SystemInfo, SystemUtilization};
+use send_types::{CpuCore, Gpu, Network, SystemInfo, SystemUtilization};
 
 use std::{
     sync::{Mutex, MutexGuard, PoisonError},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
-use sysinfo::{Cpu, CpuRefreshKind, System};
 
 struct SystemMonitor {
     nvml: Option<Nvml>,
-    sys: System,
+    sys: sysinfo::System,
     sys_info: SystemInfo,
+    networks: sysinfo::Networks,
+    last_update: Instant,
 }
 
 struct SystemMonitorState(Mutex<SystemMonitor>);
@@ -35,9 +36,13 @@ impl SystemMonitorState {
 
 impl SystemMonitor {
     fn new() -> Self {
-        let sys = System::new_all();
+        let sys = sysinfo::System::new_all();
 
-        let cpu_brand = sys.cpus().first().map_or("", Cpu::brand).to_owned();
+        let cpu_brand = sys
+            .cpus()
+            .first()
+            .map_or("", sysinfo::Cpu::brand)
+            .to_owned();
         let cpu_core_count = sys.cpus().len() as u32;
         let max_mem = sys.total_memory();
 
@@ -91,12 +96,17 @@ impl SystemMonitor {
             sys,
             nvml: Nvml::init().ok(),
             sys_info,
+            networks: sysinfo::Networks::new_with_refreshed_list(),
+            last_update: Instant::now(),
         }
     }
 
     fn get_stats(&mut self) -> SystemUtilization {
-        self.sys
-            .refresh_cpu_specifics(CpuRefreshKind::new().with_cpu_usage().with_frequency());
+        self.sys.refresh_cpu_specifics(
+            sysinfo::CpuRefreshKind::new()
+                .with_cpu_usage()
+                .with_frequency(),
+        );
         self.sys.refresh_processes();
         self.sys.refresh_memory();
         let cpus = self
@@ -111,7 +121,7 @@ impl SystemMonitor {
         let processes = self.sys.processes().len() as u32;
         let mem = self.sys.used_memory();
         let mem_max = self.sys.total_memory();
-        let up_time = Duration::from_secs(System::uptime());
+        let up_time = Duration::from_secs(sysinfo::System::uptime());
 
         let gpus = if let Some(nvml) = &self.nvml {
             let mut gpus_util = Vec::new();
@@ -140,6 +150,24 @@ impl SystemMonitor {
             vec![]
         };
 
+        let network = {
+            self.networks.refresh();
+            let (down, up) = self
+                .networks
+                .iter()
+                .fold((0, 0), |(down, up), (_inteface, data)| {
+                    (down + data.received(), up + data.transmitted())
+                });
+
+            let update_time = Instant::now();
+            let duration = update_time.duration_since(self.last_update);
+            self.last_update = update_time;
+            Network {
+                down: (down as f32 / duration.as_secs_f32()) as u64,
+                up: (up as f32 / duration.as_secs_f32()) as u64,
+            }
+        };
+
         SystemUtilization {
             cpus,
             mem,
@@ -147,6 +175,7 @@ impl SystemMonitor {
             mem_max,
             gpus,
             up_time,
+            network,
         }
     }
 }

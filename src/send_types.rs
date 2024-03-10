@@ -10,6 +10,7 @@ pub struct SystemUtilization {
     pub gpus: Vec<Gpu>,
     pub up_time: Duration,
     pub processes: u32,
+    pub network: Network,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
@@ -24,6 +25,14 @@ pub struct Gpu {
     pub mem: u32,
     pub max_mem: u64,
     pub temp: u32,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+pub struct Network {
+    /// Download speed in bytes per second
+    pub down: u64,
+    /// Upload speed in bytes per second
+    pub up: u64,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]

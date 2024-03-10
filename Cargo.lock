@@ -3499,6 +3499,7 @@ dependencies = [
 name = "resource-monitor-ui"
 version = "1.0.0"
 dependencies = [
+ "const_format",
  "js-sys",
  "leptos",
  "plotly",

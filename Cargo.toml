@@ -12,6 +12,7 @@ wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 plotly = { version = "0.8.4", features = ["wasm"] }
+const_format = "0.2.32"
 
 [workspace]
 members = ["src-tauri"]
