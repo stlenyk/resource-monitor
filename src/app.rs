@@ -110,6 +110,81 @@ fn plot_gpu(sys_util_history: &[SystemUtilization], max_history: usize, gpu_id: 
     plot_generic(plot_values, max_history, color)
 }
 
+const COLOR_DOWN: (u8, u8, u8) = (0, 128, 43);
+const COLOR_UP: (u8, u8, u8) = (120, 149, 203);
+const COLOR_DOWN_HTML: &str = const_format::formatcp!(
+    "color: rgb({}, {}, {})",
+    COLOR_DOWN.0,
+    COLOR_DOWN.1,
+    COLOR_DOWN.2
+);
+const COLOR_UP_HTML: &str =
+    const_format::formatcp!("color: rgb({}, {}, {})", COLOR_UP.0, COLOR_UP.1, COLOR_UP.2);
+
+fn plot_network(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
+    let mut plot = Plot::new();
+    let config = Configuration::new().static_plot(true);
+    plot.set_configuration(config);
+    let layout = Layout::new().auto_size(true);
+    plot.set_layout(layout);
+
+    let lower_bound = (max_history - sys_util_history.len()).max(0);
+    let x = (lower_bound..max_history).collect::<Vec<_>>();
+
+    let mut plot = Plot::new();
+    let config = Configuration::new().static_plot(true);
+    plot.set_configuration(config);
+    let layout = Layout::new().auto_size(true);
+    plot.set_layout(layout);
+
+    let down = sys_util_history
+        .iter()
+        .map(|util| util.network.down)
+        .collect::<Vec<_>>();
+    let up = sys_util_history
+        .iter()
+        .map(|util| util.network.up)
+        .collect::<Vec<_>>();
+    let down = Scatter::new(x.clone(), down).show_legend(false).marker(
+        Marker::new()
+            .color(Rgb::new(COLOR_DOWN.0, COLOR_DOWN.1, COLOR_DOWN.2))
+            .size(1),
+    );
+    let up = Scatter::new(x, up).show_legend(false).marker(
+        Marker::new()
+            .color(Rgb::new(COLOR_UP.0, COLOR_UP.1, COLOR_UP.2))
+            .size(1),
+    );
+    plot.add_trace(down);
+    plot.add_trace(up);
+
+    plot
+}
+
+#[component]
+fn PlotNetworkMini(
+    sys_util_history: Signal<Vec<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
+) -> impl IntoView {
+    let div_id = "side-network";
+    create_effect(move |_| {
+        let mut plot = plot_network(&sys_util_history.get(), max_history.get());
+
+        let x_axis = Axis::new()
+            .range(vec![0, max_history.get() - 1])
+            .tick_values(vec![]);
+        let margin = Margin::new().left(0).right(0).top(0).bottom(0);
+        let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
+        plot.set_layout(layout);
+
+        spawn_local(async move {
+            react(div_id, &plot).await;
+        });
+    });
+
+    view! { <div class="leftmini" id=div_id></div> }
+}
+
 #[component]
 fn PlotCpuMini(
     sys_util_history: Signal<Vec<SystemUtilization>>,
@@ -227,7 +302,6 @@ fn PlotGpusMini(
                         <div class="leftmini" id=div_id></div>
                         <div class="rightmini">
                             <div class="rightminititle">{format!("GPU {}", gpu_id)}</div>
-                            <br/>
                             {gpu_descr}
                         </div>
                     </button>
@@ -274,13 +348,20 @@ fn SidePanel(
         }
     };
 
+    let net_descr = move || {
+        let sys_util_history = sys_util_history.get();
+        let network = sys_util_history
+            .last()
+            .map_or(Network::default(), |sys_util| sys_util.network.clone());
+        (print_bytes(network.down), print_bytes(network.up))
+    };
+
     view! {
         <div>
             <button on:click=move |_| { main_view.set(MainView::Cpu) }>
                 <PlotCpuMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
                     <div class="rightminititle">CPU</div>
-                    <br/>
                     {cpu_descr}
                 </div>
             </button>
@@ -289,12 +370,27 @@ fn SidePanel(
                 <PlotMemMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
                     <div class="rightminititle">Memory</div>
-                    <br/>
                     {mem_descr}
                 </div>
             </button>
 
             <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
+
+            <button on:click=move |_| { main_view.set(MainView::Network) }>
+                <PlotNetworkMini sys_util_history=sys_util_history max_history=max_history/>
+                <div class="rightmini">
+                    <div class="rightminititle">Network</div>
+                    {move || {
+                        let (down, up) = net_descr();
+                        view! {
+                            <span style={COLOR_DOWN_HTML}><b>"↓"</b></span>{down}
+                            <br/>
+                            <span style={COLOR_UP_HTML}><b>"↑"</b></span>{up}
+                        }
+                    }
+                }
+                </div>
+            </button>
 
         // <img src="public/rzulta.png" style="width:100%; height:auto"/>
         </div>
@@ -397,6 +493,38 @@ fn MainPanel(
 
                 plot
             }
+
+            MainView::Network => {
+                let plot = plot_network(&sys_util_history.get(), max_history.get());
+                let max = sys_util_history
+                    .get()
+                    .iter()
+                    .map(|util| util.network.down.max(util.network.up))
+                    .max()
+                    .unwrap_or(0);
+                let y_ticks_values: Vec<_> =
+                    y_ticks.iter().map(|y| y * max as f64 / 100.0).collect();
+                let y_ticks_text = y_ticks_values
+                    .iter()
+                    .map(|y| print_bytes(*y as u64))
+                    .collect();
+                y_axis = y_axis
+                    .range(vec![0, max])
+                    .tick_values(y_ticks_values)
+                    .tick_text(y_ticks_text);
+                let (total_down, total_up) = sys_util_history
+                    .get()
+                    .iter()
+                    .fold((0, 0), |(down, up), util| {
+                        (down + util.network.down, up + util.network.up)
+                    });
+                title = Title::new(&format!(
+                    "Total: {} | {}",
+                    print_bytes(total_down),
+                    print_bytes(total_up)
+                ));
+                plot
+            }
         };
 
         let _transparent = Rgba::new(0, 0, 0, 0.0);
@@ -428,6 +556,7 @@ enum MainView {
     Cpu,
     Mem,
     Gpu(usize),
+    Network,
 }
 
 #[component]

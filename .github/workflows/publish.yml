@@ -21,6 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            src-tauri
       - name: Install WASM
         run: rustup target add wasm32-unknown-unknown
       - uses: jetli/trunk-action@v0.4.0
