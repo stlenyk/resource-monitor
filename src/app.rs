@@ -446,7 +446,7 @@ fn SidePanel(
                                                 <b>"R"</b>
                                             </span>
                                         </td>
-                                        <td>{read}</td>
+                                        <td>{read}"/s"</td>
                                     </tr>
                                     <tr>
                                         <td>
@@ -454,7 +454,7 @@ fn SidePanel(
                                                 <b>"W"</b>
                                             </span>
                                         </td>
-                                        <td>{write}</td>
+                                        <td>{write}"/s"</td>
                                     </tr>
                                 </table>
                             }
@@ -471,9 +471,9 @@ fn SidePanel(
                         move || {
                             let (down, up) = net_descr();
                             view! {
-                                <span style=COLOR_DOWN_HTML><b>"↓"</b></span>{down}
+                                <span style=COLOR_DOWN_HTML><b>"↓"</b></span>{down}"/s"
                                 <br/>
-                                <span style=COLOR_UP_HTML><b>"↑"</b></span>{up}
+                                <span style=COLOR_UP_HTML><b>"↑"</b></span>{up}"/s"
                             }
                         }
                     }
@@ -621,7 +621,7 @@ fn MainPanel(
                     y_ticks.iter().map(|y| y * max as f64 / 100.0).collect();
                 let y_ticks_text = y_ticks_values
                     .iter()
-                    .map(|y| print_bytes(*y as u64))
+                    .map(|y| format!("{}/s", print_bytes(*y as u64)))
                     .collect();
                 y_axis = y_axis
                     .range(vec![0, max])
@@ -650,7 +650,7 @@ fn MainPanel(
                     y_ticks.iter().map(|y| y * max as f64 / 100.0).collect();
                 let y_ticks_text = y_ticks_values
                     .iter()
-                    .map(|y| print_bytes(*y as u64))
+                    .map(|y| format!("{}/s", print_bytes(*y as u64)))
                     .collect();
                 y_axis = y_axis
                     .range(vec![0, max])
