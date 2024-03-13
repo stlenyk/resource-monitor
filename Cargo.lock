@@ -3482,7 +3482,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "resource-monitor"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "clap",
  "nvml-wrapper",
@@ -3497,7 +3497,7 @@ dependencies = [
 
 [[package]]
 name = "resource-monitor-ui"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "const_format",
  "js-sys",
