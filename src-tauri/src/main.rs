@@ -3,7 +3,7 @@
 
 #[path = "../../src/send_types.rs"]
 mod send_types;
-use send_types::{CpuCore, Gpu, Network, SystemInfo, SystemUtilization};
+use send_types::*;
 
 use std::{
     sync::{Mutex, MutexGuard, PoisonError},
@@ -109,6 +109,7 @@ impl SystemMonitor {
         );
         self.sys.refresh_processes();
         self.sys.refresh_memory();
+
         let cpus = self
             .sys
             .cpus()
@@ -118,6 +119,7 @@ impl SystemMonitor {
                 freq: cpu.frequency(),
             })
             .collect();
+
         let processes = self.sys.processes().len() as u32;
         let mem = self.sys.used_memory();
         let mem_max = self.sys.total_memory();
@@ -150,6 +152,23 @@ impl SystemMonitor {
             vec![]
         };
 
+        let disk = {
+            let (read, written) =
+                self.sys
+                    .processes()
+                    .iter()
+                    .fold((0, 0), |(read, write), (_pid, proc)| {
+                        (
+                            read + proc.disk_usage().read_bytes,
+                            write + proc.disk_usage().written_bytes,
+                        )
+                    });
+            Disk {
+                read_bytes: read,
+                writen_bytes: written,
+            }
+        };
+
         let network = {
             self.networks.refresh();
             let (down, up) = self
@@ -173,6 +192,7 @@ impl SystemMonitor {
             mem,
             processes,
             mem_max,
+            disk,
             gpus,
             up_time,
             network,
