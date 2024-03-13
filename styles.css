@@ -32,6 +32,10 @@ button {
   cursor: pointer;
 }
 
+td {
+  padding: 0px;
+}
+
 /* .logo.leptos:hover {
   filter: drop-shadow(0 0 2em #a82e20);
 }

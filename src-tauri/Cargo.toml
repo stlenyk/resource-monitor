@@ -1,6 +1,6 @@
 [package]
 name = "resource-monitor"
-version = "1.1.1"
+version = "1.2.0"
 description = "A GUI resource monitor"
 authors = ["stlenyk"]
 license = ""

@@ -72,10 +72,11 @@ fn plot_cpu(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot 
     plot
 }
 
-fn plot_generic<T: Clone + Serialize + 'static>(
-    values: Vec<T>,
+fn plot_generic_many<T: Clone + Serialize + 'static>(
+    values: &[Vec<T>],
     max_history: usize,
-    color: Rgb,
+    colors: &[Rgb],
+    fill: Fill,
 ) -> Plot {
     let mut plot = Plot::new();
     let config = Configuration::new().static_plot(true);
@@ -83,14 +84,17 @@ fn plot_generic<T: Clone + Serialize + 'static>(
     let layout = Layout::new().auto_size(true);
     plot.set_layout(layout);
 
-    let lower_bound = (max_history - values.len()).max(0);
+    let lower_bound = (max_history - values[0].len()).max(0);
     let x = (lower_bound..max_history).collect::<Vec<_>>();
-    let trace = Scatter::new(x, values)
-        .show_legend(false)
-        .marker(Marker::new().color(color).size(1))
-        .fill(Fill::ToZeroY);
+    for (i, y) in values.iter().enumerate() {
+        let color = colors[i % colors.len()];
+        let trace = Scatter::new(x.clone(), y.clone())
+            .show_legend(false)
+            .marker(Marker::new().color(color).size(1))
+            .fill(fill.clone());
 
-    plot.add_trace(trace);
+        plot.add_trace(trace);
+    }
 
     plot
 }
@@ -98,7 +102,8 @@ fn plot_generic<T: Clone + Serialize + 'static>(
 fn plot_mem(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
     let plot_values = sys_util_history.iter().map(|util| util.mem).collect();
     let color = Rgb::new(101, 39, 190);
-    plot_generic(plot_values, max_history, color)
+
+    plot_generic_many(&[plot_values], max_history, &[color], Fill::ToZeroY)
 }
 
 fn plot_gpu(sys_util_history: &[SystemUtilization], max_history: usize, gpu_id: usize) -> Plot {
@@ -106,8 +111,47 @@ fn plot_gpu(sys_util_history: &[SystemUtilization], max_history: usize, gpu_id: 
         .iter()
         .map(|util| util.gpus[gpu_id].usage)
         .collect();
-    let color = Rgb::new(120, 149, 203);
-    plot_generic(plot_values, max_history, color)
+    plot_generic_many(
+        &[plot_values],
+        max_history,
+        &[Rgb::new(120, 149, 203)],
+        Fill::ToZeroY,
+    )
+}
+
+const COLOR_READ: (u8, u8, u8) = (0, 128, 43);
+const COLOR_WRITE: (u8, u8, u8) = (120, 149, 203);
+const COLOR_READ_HTML: &str = const_format::formatcp!(
+    "color: rgb({}, {}, {})",
+    COLOR_READ.0,
+    COLOR_READ.1,
+    COLOR_READ.2
+);
+const COLOR_WRITE_HTML: &str = const_format::formatcp!(
+    "color: rgb({}, {}, {})",
+    COLOR_WRITE.0,
+    COLOR_WRITE.1,
+    COLOR_WRITE.2
+);
+
+fn plot_disk(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
+    let read = sys_util_history
+        .iter()
+        .map(|util| util.disk.read_bytes)
+        .collect();
+    let write = sys_util_history
+        .iter()
+        .map(|util| util.disk.writen_bytes)
+        .collect();
+    plot_generic_many(
+        &[read, write],
+        max_history,
+        &[
+            Rgb::new(COLOR_READ.0, COLOR_READ.1, COLOR_READ.2),
+            Rgb::new(COLOR_WRITE.0, COLOR_WRITE.1, COLOR_WRITE.2),
+        ],
+        Fill::None,
+    )
 }
 
 const COLOR_DOWN: (u8, u8, u8) = (0, 128, 43);
@@ -122,67 +166,20 @@ const COLOR_UP_HTML: &str =
     const_format::formatcp!("color: rgb({}, {}, {})", COLOR_UP.0, COLOR_UP.1, COLOR_UP.2);
 
 fn plot_network(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
-    let mut plot = Plot::new();
-    let config = Configuration::new().static_plot(true);
-    plot.set_configuration(config);
-    let layout = Layout::new().auto_size(true);
-    plot.set_layout(layout);
-
-    let lower_bound = (max_history - sys_util_history.len()).max(0);
-    let x = (lower_bound..max_history).collect::<Vec<_>>();
-
-    let mut plot = Plot::new();
-    let config = Configuration::new().static_plot(true);
-    plot.set_configuration(config);
-    let layout = Layout::new().auto_size(true);
-    plot.set_layout(layout);
-
     let down = sys_util_history
         .iter()
         .map(|util| util.network.down)
-        .collect::<Vec<_>>();
+        .collect();
     let up = sys_util_history
         .iter()
         .map(|util| util.network.up)
-        .collect::<Vec<_>>();
-    let down = Scatter::new(x.clone(), down).show_legend(false).marker(
-        Marker::new()
-            .color(Rgb::new(COLOR_DOWN.0, COLOR_DOWN.1, COLOR_DOWN.2))
-            .size(1),
-    );
-    let up = Scatter::new(x, up).show_legend(false).marker(
-        Marker::new()
-            .color(Rgb::new(COLOR_UP.0, COLOR_UP.1, COLOR_UP.2))
-            .size(1),
-    );
-    plot.add_trace(down);
-    plot.add_trace(up);
+        .collect();
+    let colors = [
+        Rgb::new(COLOR_DOWN.0, COLOR_DOWN.1, COLOR_DOWN.2),
+        Rgb::new(COLOR_UP.0, COLOR_UP.1, COLOR_UP.2),
+    ];
 
-    plot
-}
-
-#[component]
-fn PlotNetworkMini(
-    sys_util_history: Signal<Vec<SystemUtilization>>,
-    max_history: ReadSignal<usize>,
-) -> impl IntoView {
-    let div_id = "side-network";
-    create_effect(move |_| {
-        let mut plot = plot_network(&sys_util_history.get(), max_history.get());
-
-        let x_axis = Axis::new()
-            .range(vec![0, max_history.get() - 1])
-            .tick_values(vec![]);
-        let margin = Margin::new().left(0).right(0).top(0).bottom(0);
-        let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
-        plot.set_layout(layout);
-
-        spawn_local(async move {
-            react(div_id, &plot).await;
-        });
-    });
-
-    view! { <div class="leftmini" id=div_id></div> }
+    plot_generic_many(&[down, up], max_history, &colors, Fill::None)
 }
 
 #[component]
@@ -312,6 +309,54 @@ fn PlotGpusMini(
 }
 
 #[component]
+fn PlotDiskMini(
+    sys_util_history: Signal<Vec<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
+) -> impl IntoView {
+    let div_id = "side-disk";
+    create_effect(move |_| {
+        let mut plot = plot_disk(&sys_util_history.get(), max_history.get());
+
+        let x_axis = Axis::new()
+            .range(vec![0, max_history.get() - 1])
+            .tick_values(vec![]);
+        let margin = Margin::new().left(0).right(0).top(0).bottom(0);
+        let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
+        plot.set_layout(layout);
+
+        spawn_local(async move {
+            react(div_id, &plot).await;
+        });
+    });
+
+    view! { <div class="leftmini" id=div_id></div> }
+}
+
+#[component]
+fn PlotNetworkMini(
+    sys_util_history: Signal<Vec<SystemUtilization>>,
+    max_history: ReadSignal<usize>,
+) -> impl IntoView {
+    let div_id = "side-network";
+    create_effect(move |_| {
+        let mut plot = plot_network(&sys_util_history.get(), max_history.get());
+
+        let x_axis = Axis::new()
+            .range(vec![0, max_history.get() - 1])
+            .tick_values(vec![]);
+        let margin = Margin::new().left(0).right(0).top(0).bottom(0);
+        let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
+        plot.set_layout(layout);
+
+        spawn_local(async move {
+            react(div_id, &plot).await;
+        });
+    });
+
+    view! { <div class="leftmini" id=div_id></div> }
+}
+
+#[component]
 fn SidePanel(
     main_view: WriteSignal<MainView>,
     sys_util_history: Signal<Vec<SystemUtilization>>,
@@ -348,6 +393,16 @@ fn SidePanel(
         }
     };
 
+    let disk_descr = move || {
+        let sys_util_history = sys_util_history.get();
+        let (read, write) = if let Some(sys_util) = sys_util_history.last() {
+            (sys_util.disk.read_bytes, sys_util.disk.writen_bytes)
+        } else {
+            (0, 0)
+        };
+        (print_bytes(read), print_bytes(write))
+    };
+
     let net_descr = move || {
         let sys_util_history = sys_util_history.get();
         let network = sys_util_history
@@ -376,19 +431,52 @@ fn SidePanel(
 
             <PlotGpusMini sys_util_history=sys_util_history max_history=max_history main_view/>
 
+            <button on:click=move |_| { main_view.set(MainView::Disk) }>
+                <PlotDiskMini sys_util_history=sys_util_history max_history=max_history/>
+                <div class="rightmini">
+                    <div class="rightminititle">Disk</div>
+                    {
+                        move || {
+                            let (read, write) = disk_descr();
+                            view! {
+                                <table>
+                                    <tr>
+                                        <td>
+                                            <span style=COLOR_READ_HTML>
+                                                <b>"R"</b>
+                                            </span>
+                                        </td>
+                                        <td>{read}"/s"</td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span style=COLOR_WRITE_HTML>
+                                                <b>"W"</b>
+                                            </span>
+                                        </td>
+                                        <td>{write}"/s"</td>
+                                    </tr>
+                                </table>
+                            }
+                        }
+                    }
+                </div>
+            </button>
+
             <button on:click=move |_| { main_view.set(MainView::Network) }>
                 <PlotNetworkMini sys_util_history=sys_util_history max_history=max_history/>
                 <div class="rightmini">
                     <div class="rightminititle">Network</div>
-                    {move || {
-                        let (down, up) = net_descr();
-                        view! {
-                            <span style={COLOR_DOWN_HTML}><b>"↓"</b></span>{down}
-                            <br/>
-                            <span style={COLOR_UP_HTML}><b>"↑"</b></span>{up}
+                    {
+                        move || {
+                            let (down, up) = net_descr();
+                            view! {
+                                <span style=COLOR_DOWN_HTML><b>"↓"</b></span>{down}"/s"
+                                <br/>
+                                <span style=COLOR_UP_HTML><b>"↑"</b></span>{up}"/s"
+                            }
                         }
                     }
-                }
                 </div>
             </button>
 
@@ -533,7 +621,7 @@ fn MainPanel(
                     y_ticks.iter().map(|y| y * max as f64 / 100.0).collect();
                 let y_ticks_text = y_ticks_values
                     .iter()
-                    .map(|y| print_bytes(*y as u64))
+                    .map(|y| format!("{}/s", print_bytes(*y as u64)))
                     .collect();
                 y_axis = y_axis
                     .range(vec![0, max])
@@ -548,6 +636,37 @@ fn MainPanel(
                     print_bytes(total_down),
                     print_bytes(total_up)
                 ));
+                plot
+            }
+
+            MainView::Disk => {
+                let plot = plot_disk(&sys_util_history_sampled, max_history.get());
+                let max = sys_util_history_sampled
+                    .iter()
+                    .map(|util| util.disk.read_bytes.max(util.disk.writen_bytes))
+                    .max()
+                    .unwrap_or(0);
+                let y_ticks_values: Vec<_> =
+                    y_ticks.iter().map(|y| y * max as f64 / 100.0).collect();
+                let y_ticks_text = y_ticks_values
+                    .iter()
+                    .map(|y| format!("{}/s", print_bytes(*y as u64)))
+                    .collect();
+                y_axis = y_axis
+                    .range(vec![0, max])
+                    .tick_values(y_ticks_values)
+                    .tick_text(y_ticks_text);
+
+                let (total_read, total_write) =
+                    sys_util_history.fold((0, 0), |(read, write), util| {
+                        (read + util.disk.read_bytes, write + util.disk.writen_bytes)
+                    });
+                title = Title::new(&format!(
+                    "Total: {} | {}",
+                    print_bytes(total_read),
+                    print_bytes(total_write)
+                ));
+
                 plot
             }
         };
@@ -581,6 +700,7 @@ enum MainView {
     Cpu,
     Mem,
     Gpu(usize),
+    Disk,
     Network,
 }
 
