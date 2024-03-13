@@ -102,7 +102,7 @@ fn plot_generic_many<T: Clone + Serialize + 'static>(
 fn plot_mem(sys_util_history: &[SystemUtilization], max_history: usize) -> Plot {
     let plot_values = sys_util_history.iter().map(|util| util.mem).collect();
     let color = Rgb::new(101, 39, 190);
-    // plot_generic(plot_values, max_history, color);
+
     plot_generic_many(&[plot_values], max_history, &[color], Fill::ToZeroY)
 }
 
@@ -643,7 +643,7 @@ fn MainPanel(
                 let plot = plot_disk(&sys_util_history_sampled, max_history.get());
                 let max = sys_util_history_sampled
                     .iter()
-                    .map(|util| util.network.down.max(util.network.up))
+                    .map(|util| util.disk.read_bytes.max(util.disk.writen_bytes))
                     .max()
                     .unwrap_or(0);
                 let y_ticks_values: Vec<_> =
