@@ -425,12 +425,41 @@ fn print_secs(value: u64) -> String {
 fn MainPanel(
     main_view: ReadSignal<MainView>,
     sys_info: ReadSignal<SystemInfo>,
-    sys_util_history: Signal<Vec<SystemUtilization>>,
+    sys_util_history: ReadSignal<VecDeque<SystemUtilization>>,
     max_history: ReadSignal<usize>,
     history_time: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "main-view";
+
+    let sys_util_history_sampled: Signal<_> = {
+        move || {
+            let history_time = history_time.get();
+            let sys_util_history = sys_util_history.get();
+            let step = history_time.div_ceil(max_history.get());
+
+            if sys_util_history.len() < step {
+                // So that there are proper y axes values for long periods such as 24h
+                sys_util_history.iter().take(1).cloned().collect()
+            } else {
+                sys_util_history
+                    .iter()
+                    .rev()
+                    .skip(sys_util_history.len() % step)
+                    .take(history_time)
+                    .step_by(step)
+                    .rev()
+                    .cloned()
+                    .collect::<Vec<_>>()
+            }
+        }
+    }
+    .into();
+
     create_effect(move |_| {
+        let binding = sys_util_history.get();
+        let sys_util_history = binding.iter().rev().take(history_time.get());
+        let sys_util_history_sampled = sys_util_history_sampled.get();
+
         let mut title = Title::new("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
@@ -448,7 +477,7 @@ fn MainPanel(
 
         let mut plot = match main_view.get() {
             MainView::Cpu => {
-                let plot = plot_cpu(&sys_util_history.get(), max_history.get());
+                let plot = plot_cpu(&sys_util_history_sampled, max_history.get());
 
                 title = Title::new(&sys_info.get().cpu_brand.to_string());
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
@@ -461,10 +490,9 @@ fn MainPanel(
             }
 
             MainView::Mem => {
-                let plot = plot_mem(&sys_util_history.get(), max_history.get());
+                let plot = plot_mem(&sys_util_history_sampled, max_history.get());
 
-                let mem_max = sys_util_history
-                    .get()
+                let mem_max = sys_util_history_sampled
                     .first()
                     .map_or(0, |sys_util| sys_util.mem_max);
                 let y_ticks_values: Vec<_> =
@@ -482,7 +510,7 @@ fn MainPanel(
             }
 
             MainView::Gpu(gpu_id) => {
-                let plot = plot_gpu(&sys_util_history.get(), max_history.get(), gpu_id);
+                let plot = plot_gpu(&sys_util_history_sampled, max_history.get(), gpu_id);
 
                 title = Title::new(&sys_info.get().gpu_names[gpu_id]);
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
@@ -495,9 +523,8 @@ fn MainPanel(
             }
 
             MainView::Network => {
-                let plot = plot_network(&sys_util_history.get(), max_history.get());
-                let max = sys_util_history
-                    .get()
+                let plot = plot_network(&sys_util_history_sampled, max_history.get());
+                let max = sys_util_history_sampled
                     .iter()
                     .map(|util| util.network.down.max(util.network.up))
                     .max()
@@ -512,12 +539,10 @@ fn MainPanel(
                     .range(vec![0, max])
                     .tick_values(y_ticks_values)
                     .tick_text(y_ticks_text);
-                let (total_down, total_up) = sys_util_history
-                    .get()
-                    .iter()
-                    .fold((0, 0), |(down, up), util| {
-                        (down + util.network.down, up + util.network.up)
-                    });
+
+                let (total_down, total_up) = sys_util_history.fold((0, 0), |(down, up), util| {
+                    (down + util.network.down, up + util.network.up)
+                });
                 title = Title::new(&format!(
                     "Total: {} | {}",
                     print_bytes(total_down),
@@ -606,30 +631,6 @@ pub fn App() -> impl IntoView {
 
     set_interval(update_sys_util, update_interval);
 
-    let sys_util_history_to_show = {
-        move || {
-            let history_time = history_time.get();
-            let sys_util_history = sys_util_history.get();
-            let step = history_time.div_ceil(x_axis_points.get());
-
-            if sys_util_history.len() < step {
-                // So that there are proper y axes values for long periods such as 24h
-                sys_util_history.iter().take(1).cloned().collect()
-            } else {
-                sys_util_history
-                    .iter()
-                    .rev()
-                    .skip(sys_util_history.len() % step)
-                    .take(history_time)
-                    .step_by(step)
-                    .rev()
-                    .cloned()
-                    .collect()
-            }
-        }
-    }
-    .into();
-
     const X_AXIS_LEN_STATIC: usize = TIME_OPTIONS[0] as usize;
     let sys_util_history_side_panel = {
         move || {
@@ -670,7 +671,7 @@ pub fn App() -> impl IntoView {
                 </div>
                 <MainPanel
                     main_view=main_view.read_only()
-                    sys_util_history=sys_util_history_to_show
+                    sys_util_history=sys_util_history.read_only()
                     max_history=x_axis_points.read_only()
                     sys_info=sys_info.read_only()
                     history_time=history_time.read_only()
