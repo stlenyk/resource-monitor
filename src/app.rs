@@ -1,4 +1,4 @@
-use crate::send_types::*;
+use shared::*;
 
 use std::{collections::VecDeque, time::Duration};
 
