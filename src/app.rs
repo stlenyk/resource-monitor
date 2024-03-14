@@ -534,9 +534,52 @@ fn MainPanel(
                     .rev()
                     .skip(sys_util_history.len() % step)
                     .take(history_time)
-                    .step_by(step)
+                    .collect::<Vec<_>>()
+                    .chunks(step)
+                    .map(|chunk| {
+                        let mut zero = SystemUtilization {
+                            cpus: vec![
+                                CpuCore::default();
+                                chunk.first().map_or(0, |util| util.cpus.len())
+                            ],
+                            gpus: vec![
+                                Gpu::default();
+                                chunk.first().map_or(0, |util| util.gpus.len())
+                            ],
+                            ..Default::default()
+                        };
+                        vec![Gpu::default(); chunk.first().map_or(0, |util| util.gpus.len())];
+                        for &el in chunk {
+                            zero = zero + el.clone();
+                        }
+                        zero.cpus = zero
+                            .cpus
+                            .iter()
+                            .map(|cpu| CpuCore {
+                                usage: cpu.usage / step as f32,
+                                freq: cpu.freq / step as u64,
+                            })
+                            .collect();
+                        zero.gpus = zero
+                            .gpus
+                            .iter()
+                            .map(|gpu| Gpu {
+                                usage: gpu.usage / step as u32,
+                                mem: gpu.mem / step as u32,
+                                max_mem: gpu.max_mem / step as u64,
+                                temp: gpu.temp / step as u32,
+                            })
+                            .collect();
+                        zero.mem /= step as u64;
+                        zero.mem_max /= step as u64;
+                        zero.disk /= step as u64;
+                        zero.up_time /= step as u32;
+                        zero.network /= step as u64;
+                        zero.processes /= step as u32;
+
+                        zero
+                    })
                     .rev()
-                    .cloned()
                     .collect::<Vec<_>>()
             }
         }
