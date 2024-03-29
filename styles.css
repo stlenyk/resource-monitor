@@ -1,3 +1,7 @@
+:root {
+  font-family: Fira Sans, sans-serif;
+}
+
 .leftpanel {
   float: left;
   width: 200px;
@@ -27,6 +31,7 @@
 }
 
 button {
+  font-family: inherit;
   margin-bottom: 2px;
   width: 100%;
   cursor: pointer;
