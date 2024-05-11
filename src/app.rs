@@ -1,4 +1,4 @@
-use crate::send_types::*;
+use shared::*;
 
 use std::{collections::VecDeque, time::Duration};
 
@@ -534,9 +534,52 @@ fn MainPanel(
                     .rev()
                     .skip(sys_util_history.len() % step)
                     .take(history_time)
-                    .step_by(step)
+                    .collect::<Vec<_>>()
+                    .chunks(step)
+                    .map(|chunk| {
+                        let mut zero = SystemUtilization {
+                            cpus: vec![
+                                CpuCore::default();
+                                chunk.first().map_or(0, |util| util.cpus.len())
+                            ],
+                            gpus: vec![
+                                Gpu::default();
+                                chunk.first().map_or(0, |util| util.gpus.len())
+                            ],
+                            ..Default::default()
+                        };
+                        vec![Gpu::default(); chunk.first().map_or(0, |util| util.gpus.len())];
+                        for &el in chunk {
+                            zero = zero + el.clone();
+                        }
+                        zero.cpus = zero
+                            .cpus
+                            .iter()
+                            .map(|cpu| CpuCore {
+                                usage: cpu.usage / step as f32,
+                                freq: cpu.freq / step as u64,
+                            })
+                            .collect();
+                        zero.gpus = zero
+                            .gpus
+                            .iter()
+                            .map(|gpu| Gpu {
+                                usage: gpu.usage / step as u32,
+                                mem: gpu.mem / step as u32,
+                                max_mem: gpu.max_mem / step as u64,
+                                temp: gpu.temp / step as u32,
+                            })
+                            .collect();
+                        zero.mem /= step as u64;
+                        zero.mem_max /= step as u64;
+                        zero.disk /= step as u64;
+                        zero.up_time /= step as u32;
+                        zero.network /= step as u64;
+                        zero.processes /= step as u32;
+
+                        zero
+                    })
                     .rev()
-                    .cloned()
                     .collect::<Vec<_>>()
             }
         }
@@ -704,20 +747,39 @@ enum MainView {
     Network,
 }
 
+const TIME_OPTIONS: [u64; 7] = [
+    60,
+    5 * 60,
+    30 * 60,
+    3 * 3600,
+    6 * 3600,
+    12 * 3600,
+    24 * 3600,
+];
+
+fn push_stats(curr: WriteSignal<VecDeque<SystemUtilization>>, interval: Duration) {
+    let t0 = js_sys::Date::now();
+    spawn_local(async move {
+        let values = invoke("get_stats", JsValue::NULL).await;
+        let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
+        curr.update(|history| {
+            history.push_back(values);
+            if history.len() > TIME_OPTIONS[TIME_OPTIONS.len() - 1] as usize {
+                history.pop_front();
+            }
+        });
+    });
+    let t1 = js_sys::Date::now();
+    let elapsed = Duration::from_millis((t1 - t0) as u64);
+    set_timeout(
+        move || push_stats(curr, interval),
+        interval.saturating_sub(elapsed),
+    );
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     let update_interval = Duration::from_millis(1000);
-
-    const TIME_OPTIONS: [u64; 7] = [
-        60,
-        5 * 60,
-        30 * 60,
-        3 * 3600,
-        6 * 3600,
-        12 * 3600,
-        24 * 3600,
-    ];
-
     let sys_util_history = RwSignal::new(VecDeque::new());
     let sys_info = RwSignal::new(SystemInfo::default());
     let main_view = RwSignal::new(MainView::Cpu);
@@ -735,21 +797,7 @@ pub fn App() -> impl IntoView {
         sys_info.set(values);
     });
 
-    let update_sys_util = move || {
-        spawn_local(async move {
-            let values = invoke("get_stats", JsValue::NULL).await;
-            let values: SystemUtilization = serde_wasm_bindgen::from_value(values).unwrap();
-            sys_util_history.update(|history| {
-                history.push_back(values);
-                if history.len() > TIME_OPTIONS[TIME_OPTIONS.len() - 1] as usize {
-                    history.pop_front();
-                }
-            });
-        });
-    };
-    update_sys_util();
-
-    set_interval(update_sys_util, update_interval);
+    push_stats(sys_util_history.write_only(), update_interval);
 
     const X_AXIS_LEN_STATIC: usize = TIME_OPTIONS[0] as usize;
     let sys_util_history_side_panel = {

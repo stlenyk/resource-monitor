@@ -1,5 +1,4 @@
 mod app;
-mod send_types;
 
 use app::*;
 use leptos::*;

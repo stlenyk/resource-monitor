@@ -1,6 +1,6 @@
 [package]
 name = "resource-monitor"
-version = "1.2.0"
+version = "1.2.1"
 description = "A GUI resource monitor"
 authors = ["stlenyk"]
 license = ""
@@ -13,6 +13,8 @@ edition = "2021"
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
+shared = { path = "../shared" }
+
 tauri = { version = "1.6", features = ["shell-open", "system-tray"] }
 tauri-plugin-single-instance = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 serde = { version = "1.0", features = ["derive"] }
