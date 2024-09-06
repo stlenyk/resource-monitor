@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-derive_more = "0.99.17"
+derive_more = { version = "1.0", features = ["add", "mul", "mul_assign", "sum"] }
 serde = { version = "1.0", features = ["derive"] }

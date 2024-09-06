@@ -591,7 +591,7 @@ fn MainPanel(
         let sys_util_history = binding.iter().rev().take(history_time.get());
         let sys_util_history_sampled = sys_util_history_sampled.get();
 
-        let mut title = Title::new("");
+        let mut title = Title::from("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
             .range(vec![0, max_history.get() - 1])
@@ -610,7 +610,7 @@ fn MainPanel(
             MainView::Cpu => {
                 let plot = plot_cpu(&sys_util_history_sampled, max_history.get());
 
-                title = Title::new(&sys_info.get().cpu_brand.to_string());
+                title = Title::from(&sys_info.get().cpu_brand.to_string());
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
                 y_axis = y_axis
                     .range(vec![0, 100])
@@ -643,7 +643,7 @@ fn MainPanel(
             MainView::Gpu(gpu_id) => {
                 let plot = plot_gpu(&sys_util_history_sampled, max_history.get(), gpu_id);
 
-                title = Title::new(&sys_info.get().gpu_names[gpu_id]);
+                title = Title::from(&sys_info.get().gpu_names[gpu_id]);
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
                 y_axis = y_axis
                     .range(vec![0, 100])
@@ -674,7 +674,7 @@ fn MainPanel(
                 let (total_down, total_up) = sys_util_history.fold((0, 0), |(down, up), util| {
                     (down + util.network.down, up + util.network.up)
                 });
-                title = Title::new(&format!(
+                title = Title::from(&format!(
                     "Total: {} | {}",
                     print_bytes(total_down),
                     print_bytes(total_up)
@@ -704,7 +704,7 @@ fn MainPanel(
                     sys_util_history.fold((0, 0), |(read, write), util| {
                         (read + util.disk.read_bytes, write + util.disk.writen_bytes)
                     });
-                title = Title::new(&format!(
+                title = Title::from(&format!(
                     "Total: {} | {}",
                     print_bytes(total_read),
                     print_bytes(total_write)
