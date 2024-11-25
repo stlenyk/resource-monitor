@@ -106,7 +106,7 @@ impl SystemMonitor {
                 .with_cpu_usage()
                 .with_frequency(),
         );
-        self.sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
+        self.sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         self.sys.refresh_memory();
 
         let cpus = self
