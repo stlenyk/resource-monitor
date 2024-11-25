@@ -19,7 +19,7 @@
   },
   "productName": "resource-monitor",
   "mainBinaryName": "resource-monitor",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "identifier": "stlenyk.ResourceMonitor",
   "plugins": {},
   "app": {
