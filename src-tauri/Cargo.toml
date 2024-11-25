@@ -24,6 +24,7 @@ nvml-wrapper = "0.10.0"
 raw-cpuid = "11.0.1"
 clap = { version = "4.5.2", features = ["derive"] }
 tauri-plugin-shell = "2"
+clap_complete = "4.5.2"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

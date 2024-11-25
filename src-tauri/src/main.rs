@@ -199,14 +199,18 @@ impl SystemMonitor {
     }
 }
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct CliArgs {
-    #[arg(short, long, default_value_t = false, help = "Start minimized to tray")]
+    #[arg(long, default_value_t = false, help = "Start minimized to tray")]
     minimize: bool,
-    width: usize,
-    height: usize,
+    #[arg(long, help = "Set window width")]
+    width: Option<u32>,
+    #[arg(long, help = "Set window height")]
+    height: Option<u32>,
+    #[arg(long, help = "Generate shell completions")]
+    completions: Option<clap_complete::Shell>,
 }
 
 #[tauri::command]
@@ -221,7 +225,7 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 
 use tauri::{
     menu::{MenuBuilder, MenuItem, MenuItemBuilder},
-    AppHandle, Manager, RunEvent, WindowEvent, Wry,
+    AppHandle, Manager, PhysicalSize, RunEvent, Size, WindowEvent, Wry,
 };
 
 fn show_window(app: &AppHandle) {
@@ -244,7 +248,17 @@ const TRAY_HIDE_ID: &str = "hide";
 const TRAY_QUIT_ID: &str = "quit";
 
 fn main() {
-    let args = CliArgs::parse();
+    let cli_args = CliArgs::parse();
+
+    if let Some(shell) = cli_args.completions {
+        clap_complete::generate(
+            shell,
+            &mut CliArgs::command(),
+            env!("CARGO_PKG_NAME"),
+            &mut std::io::stdout(),
+        );
+        return;
+    }
 
     let builder = if cfg!(not(debug_assertions)) {
         tauri::Builder::default()
@@ -296,8 +310,21 @@ fn main() {
                 .build(app)
                 .unwrap();
 
-            if args.minimize {
+            if cli_args.minimize {
                 hide_window(app.app_handle());
+            }
+
+            if let Some(width) = cli_args.width {
+                let window = app.get_webview_window(WINDOW_ID).unwrap();
+                let height = window.inner_size().unwrap().height;
+                let size = Size::Physical(PhysicalSize::new(width, height));
+                window.set_size(size).unwrap();
+            }
+            if let Some(height) = cli_args.height {
+                let window = app.get_webview_window(WINDOW_ID).unwrap();
+                let width = window.inner_size().unwrap().width;
+                let size = Size::Physical(PhysicalSize::new(width, height));
+                window.set_size(size).unwrap();
             }
 
             Ok(())
