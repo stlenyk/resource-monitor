@@ -25,16 +25,17 @@ Head to the ***[releases](https://github.com/stlenyk/resource-monitor/releases)*
 
 3. Install Tauri's Rust CLI:
 
-    * dependencies (for Windows/Mac/non-Debian Linux see [detailed instructions]((https://tauri.app/v1/guides/getting-started/prerequisites))):
+    * dependencies (for Windows/Mac/non-Debian Linux see [detailed instructions](https://v2.tauri.app/start/prerequisites/)):
 
         ```sh
-        sudo apt install libwebkit2gtk-4.0-dev \
+        sudo apt install \
+        libwebkit2gtk-4.1-dev \
         build-essential \
         curl \
         wget \
         file \
+        libxdo-dev \
         libssl-dev \
-        libgtk-3-dev \
         libayatana-appindicator3-dev \
         librsvg2-dev
         ```

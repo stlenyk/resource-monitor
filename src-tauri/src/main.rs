@@ -4,7 +4,8 @@
 use shared::*;
 
 use std::{
-    sync::{Mutex, MutexGuard, PoisonError},
+    process,
+    sync::{Mutex, MutexGuard, OnceLock, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -105,7 +106,7 @@ impl SystemMonitor {
                 .with_cpu_usage()
                 .with_frequency(),
         );
-        self.sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
+        self.sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
         self.sys.refresh_memory();
 
         let cpus = self
@@ -198,12 +199,18 @@ impl SystemMonitor {
     }
 }
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct CliArgs {
-    #[arg(short, long, default_value_t = false, help = "Start minimized to tray")]
+    #[arg(long, default_value_t = false, help = "Start minimized to tray")]
     minimize: bool,
+    #[arg(long, help = "Set window width")]
+    width: Option<u32>,
+    #[arg(long, help = "Set window height")]
+    height: Option<u32>,
+    #[arg(id="SHELL", long, help = "Generate shell completions")]
+    completions: Option<clap_complete::Shell>,
 }
 
 #[tauri::command]
@@ -217,44 +224,45 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 }
 
 use tauri::{
-    AppHandle, CustomMenuItem, Manager, RunEvent, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    SystemTrayMenuItem, WindowEvent,
+    menu::{MenuBuilder, MenuItem, MenuItemBuilder},
+    AppHandle, Manager, PhysicalSize, RunEvent, Size, WindowEvent, Wry,
 };
 
-const WINDOW_ID: &str = "main";
-const TRAY_QUIT: &str = "quit";
-const TRAY_HIDE: &str = "hide";
-const TRAY_SHOW: &str = "show";
-
 fn show_window(app: &AppHandle) {
-    let window = app.get_window(WINDOW_ID).unwrap();
+    let window = app.get_webview_window(WINDOW_ID).unwrap();
     window.show().unwrap();
     window.set_focus().unwrap();
-    app.tray_handle()
-        .get_item(TRAY_HIDE)
-        .set_enabled(true)
-        .unwrap();
+    TRAY_HIDE.get().unwrap().set_enabled(true).unwrap();
 }
 fn hide_window(app: &AppHandle) {
-    app.get_window(WINDOW_ID).unwrap().hide().unwrap();
-    app.tray_handle()
-        .get_item(TRAY_HIDE)
-        .set_enabled(false)
-        .unwrap();
+    app.get_webview_window(WINDOW_ID).unwrap().hide().unwrap();
+    TRAY_HIDE.get().unwrap().set_enabled(false).unwrap();
 }
 
-fn main() {
-    let args = CliArgs::parse();
+const WINDOW_ID: &str = "main";
+static TRAY_SHOW: OnceLock<MenuItem<Wry>> = OnceLock::new();
+static TRAY_HIDE: OnceLock<MenuItem<Wry>> = OnceLock::new();
+static TRAY_QUIT: OnceLock<MenuItem<Wry>> = OnceLock::new();
+const TRAY_SHOW_ID: &str = "show";
+const TRAY_HIDE_ID: &str = "hide";
+const TRAY_QUIT_ID: &str = "quit";
 
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(CustomMenuItem::new(TRAY_HIDE, "Hide"))
-        .add_item(CustomMenuItem::new(TRAY_SHOW, "Show"))
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(CustomMenuItem::new(TRAY_QUIT, "Quit"));
-    let tray = SystemTray::new().with_menu(tray_menu);
+fn main() {
+    let cli_args = CliArgs::parse();
+
+    if let Some(shell) = cli_args.completions {
+        clap_complete::generate(
+            shell,
+            &mut CliArgs::command(),
+            env!("CARGO_PKG_NAME"),
+            &mut std::io::stdout(),
+        );
+        return;
+    }
 
     let builder = if cfg!(not(debug_assertions)) {
         tauri::Builder::default()
+            .plugin(tauri_plugin_shell::init())
             // This plugin breaks `cargo tauri dev` reload
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
                 show_window(app);
@@ -267,24 +275,63 @@ fn main() {
     builder
         .manage(SystemMonitorState::new())
         .setup(move |app| {
-            if args.minimize {
-                hide_window(&app.app_handle());
+            TRAY_SHOW.get_or_init(|| {
+                MenuItemBuilder::with_id(TRAY_SHOW_ID, "Show")
+                    .build(app)
+                    .unwrap()
+            });
+            TRAY_HIDE.get_or_init(|| {
+                MenuItemBuilder::with_id(TRAY_HIDE_ID, "Hide")
+                    .build(app)
+                    .unwrap()
+            });
+            TRAY_QUIT.get_or_init(|| {
+                MenuItemBuilder::with_id(TRAY_QUIT_ID, "Quit")
+                    .build(app)
+                    .unwrap()
+            });
+
+            let tray_menu = MenuBuilder::new(app)
+                .item(TRAY_HIDE.get().unwrap())
+                .item(TRAY_SHOW.get().unwrap())
+                .separator()
+                .item(TRAY_QUIT.get().unwrap())
+                .build()
+                .unwrap();
+            tauri::tray::TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&tray_menu)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    TRAY_SHOW_ID => show_window(app),
+                    TRAY_HIDE_ID => hide_window(app),
+                    TRAY_QUIT_ID => process::exit(0),
+                    _ => {}
+                })
+                .build(app)
+                .unwrap();
+
+            if cli_args.minimize {
+                hide_window(app.app_handle());
             }
+
+            if let Some(width) = cli_args.width {
+                let window = app.get_webview_window(WINDOW_ID).unwrap();
+                let height = window.inner_size().unwrap().height;
+                let size = Size::Physical(PhysicalSize::new(width, height));
+                window.set_size(size).unwrap();
+            }
+            if let Some(height) = cli_args.height {
+                let window = app.get_webview_window(WINDOW_ID).unwrap();
+                let width = window.inner_size().unwrap().width;
+                let size = Size::Physical(PhysicalSize::new(width, height));
+                window.set_size(size).unwrap();
+            }
+
             Ok(())
         })
-        .system_tray(tray)
-        .on_system_tray_event(|app, event| match event {
-            SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-                TRAY_QUIT => std::process::exit(0),
-                TRAY_HIDE => hide_window(app),
-                TRAY_SHOW => show_window(app),
-                _ => {}
-            },
-            _ => {}
-        })
-        .on_window_event(|event| {
-            if let WindowEvent::CloseRequested { api, .. } = event.event() {
-                hide_window(&event.window().app_handle());
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                hide_window(window.app_handle());
                 api.prevent_close();
             }
         })
