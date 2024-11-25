@@ -209,7 +209,7 @@ struct CliArgs {
     width: Option<u32>,
     #[arg(long, help = "Set window height")]
     height: Option<u32>,
-    #[arg(long, help = "Generate shell completions")]
+    #[arg(id="SHELL", long, help = "Generate shell completions")]
     completions: Option<clap_complete::Shell>,
 }
 
