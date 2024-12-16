@@ -102,7 +102,7 @@ impl SystemMonitor {
 
     fn get_stats(&mut self) -> SystemUtilization {
         self.sys.refresh_cpu_specifics(
-            sysinfo::CpuRefreshKind::new()
+            sysinfo::CpuRefreshKind::nothing()
                 .with_cpu_usage()
                 .with_frequency(),
         );
@@ -169,7 +169,7 @@ impl SystemMonitor {
         };
 
         let network = {
-            self.networks.refresh();
+            self.networks.refresh(true);
             let (down, up) = self
                 .networks
                 .iter()
