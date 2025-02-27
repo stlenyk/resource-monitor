@@ -1,10 +1,7 @@
 mod app;
 
-use app::*;
-use leptos::*;
-
 fn main() {
-    mount_to_body(|| {
-        view! { <App/> }
+    leptos::mount::mount_to_body(|| {
+        leptos::view! { <app::App/> }
     })
 }
