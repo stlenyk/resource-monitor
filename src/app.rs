@@ -7,7 +7,7 @@ use plotly::{
     bindings::react,
     color::{Rgb, Rgba},
     common::{AxisSide, Fill, Marker, Title},
-    layout::{Axis, Margin},
+    layout::{Axis, AxisRange, Margin},
     Configuration, Layout, Plot, Scatter,
 };
 use serde::Serialize;
@@ -192,9 +192,11 @@ fn PlotCpuMini(
         let mut plot = plot_cpu(&sys_util_history.get(), max_history.get());
 
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
-        let y_axis = Axis::new().range(vec![0, 100]).tick_values(y_ticks);
+        let y_axis = Axis::new()
+            .range(AxisRange::new(0, 100))
+            .tick_values(y_ticks);
         let x_axis = Axis::new()
-            .range(vec![0, max_history.get() - 1])
+            .range(AxisRange::new(0, max_history.get() - 1))
             .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
@@ -229,9 +231,9 @@ fn PlotMemMini(
         } else {
             0
         };
-        let y_axis = Axis::new().range(vec![0, max_mem]);
+        let y_axis = Axis::new().range(AxisRange::new(0, max_mem));
         let x_axis = Axis::new()
-            .range(vec![0, max_history - 1])
+            .range(AxisRange::new(0, max_history - 1))
             .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot
@@ -268,9 +270,9 @@ fn PlotGpusMini(
                         let max_history = max_history.get();
                         let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
                         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
-                        let y_axis = Axis::new().range(vec![0, 100]).tick_values(y_ticks);
+                        let y_axis = Axis::new().range(AxisRange::new(0, 100)).tick_values(y_ticks);
                         let x_axis = Axis::new()
-                            .range(vec![0, max_history - 1])
+                            .range(AxisRange::new(0, max_history - 1))
                             .tick_values(vec![]);
                         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
                         let layout = plot
@@ -318,7 +320,7 @@ fn PlotDiskMini(
         let mut plot = plot_disk(&sys_util_history.get(), max_history.get());
 
         let x_axis = Axis::new()
-            .range(vec![0, max_history.get() - 1])
+            .range(AxisRange::new(0, max_history.get() - 1))
             .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
@@ -342,7 +344,7 @@ fn PlotNetworkMini(
         let mut plot = plot_network(&sys_util_history.get(), max_history.get());
 
         let x_axis = Axis::new()
-            .range(vec![0, max_history.get() - 1])
+            .range(AxisRange::new(0, max_history.get() - 1))
             .tick_values(vec![]);
         let margin = Margin::new().left(0).right(0).top(0).bottom(0);
         let layout = plot.layout().clone().margin(margin).x_axis(x_axis);
@@ -594,7 +596,7 @@ fn MainPanel(
         let mut title = Title::from("");
         let black = Rgb::new(0, 0, 0);
         let x_axis = Axis::new()
-            .range(vec![0, max_history.get() - 1])
+            .range(AxisRange::new(0, max_history.get() - 1))
             .tick_values(vec![0.0])
             .tick_text(vec![format!("{}", print_secs(history_time.get() as u64))])
             .line_color(black)
@@ -613,7 +615,7 @@ fn MainPanel(
                 title = Title::from(&sys_info.get().cpu_brand.to_string());
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
                 y_axis = y_axis
-                    .range(vec![0, 100])
+                    .range(AxisRange::new(0, 100))
                     .tick_values(y_ticks)
                     .tick_text(y_ticks_text);
 
@@ -633,7 +635,7 @@ fn MainPanel(
                     .map(|y| print_bytes(*y as u64))
                     .collect();
                 y_axis = y_axis
-                    .range(vec![0, mem_max])
+                    .range(AxisRange::new(0, mem_max))
                     .tick_values(y_ticks_values)
                     .tick_text(y_ticks_text);
 
@@ -646,7 +648,7 @@ fn MainPanel(
                 title = Title::from(&sys_info.get().gpu_names[gpu_id]);
                 let y_ticks_text = y_ticks.iter().map(|x| format!("{:.0}%", x)).collect();
                 y_axis = y_axis
-                    .range(vec![0, 100])
+                    .range(AxisRange::new(0, 100))
                     .tick_values(y_ticks)
                     .tick_text(y_ticks_text);
 
@@ -667,7 +669,7 @@ fn MainPanel(
                     .map(|y| format!("{}/s", print_bytes(*y as u64)))
                     .collect();
                 y_axis = y_axis
-                    .range(vec![0, max])
+                    .range(AxisRange::new(0, max))
                     .tick_values(y_ticks_values)
                     .tick_text(y_ticks_text);
 
@@ -696,7 +698,7 @@ fn MainPanel(
                     .map(|y| format!("{}/s", print_bytes(*y as u64)))
                     .collect();
                 y_axis = y_axis
-                    .range(vec![0, max])
+                    .range(AxisRange::new(0, max))
                     .tick_values(y_ticks_values)
                     .tick_text(y_ticks_text);
 
