@@ -1,4 +1,5 @@
 mod app;
+mod plotly_bindings;
 
 fn main() {
     leptos::mount::mount_to_body(|| {

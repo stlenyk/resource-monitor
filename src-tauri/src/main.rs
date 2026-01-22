@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use nvml_wrapper::{enum_wrappers::device::TemperatureSensor, Nvml};
+use nvml_wrapper::{Nvml, enum_wrappers::device::TemperatureSensor};
 
 struct SystemMonitor {
     nvml: Option<Nvml>,
@@ -225,8 +225,8 @@ fn get_sys_info(state: tauri::State<SystemMonitorState>) -> SystemInfo {
 }
 
 use tauri::{
-    menu::{MenuBuilder, MenuItem, MenuItemBuilder},
     AppHandle, Manager, PhysicalSize, RunEvent, Size, WindowEvent, Wry,
+    menu::{MenuBuilder, MenuItem, MenuItemBuilder},
 };
 
 fn show_window(app: &AppHandle) {

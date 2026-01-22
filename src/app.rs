@@ -4,12 +4,13 @@ use std::{collections::VecDeque, time::Duration};
 
 use leptos::{prelude::*, task::spawn_local};
 use plotly::{
-    bindings::react,
+    Configuration, Layout, Plot, Scatter,
     color::{Rgb, Rgba},
     common::{AxisSide, Fill, Marker, Title},
     layout::{Axis, AxisRange, Margin},
-    Configuration, Layout, Plot, Scatter,
 };
+
+use crate::plotly_bindings::react;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
