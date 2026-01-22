@@ -2,7 +2,7 @@ use shared::*;
 
 use std::{collections::VecDeque, time::Duration};
 
-use leptos::*;
+use leptos::{prelude::*, task::spawn_local};
 use plotly::{
     bindings::react,
     color::{Rgb, Rgba},
@@ -188,7 +188,7 @@ fn PlotCpuMini(
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-cpu";
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let mut plot = plot_cpu(&sys_util_history.get(), max_history.get());
 
         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -221,7 +221,7 @@ fn PlotMemMini(
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-mem";
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let max_history = max_history.get();
 
         let mut plot = plot_mem(&sys_util_history.get(), max_history);
@@ -266,7 +266,7 @@ fn PlotGpusMini(
                 let div_id = format!("side-gpu-{}", gpu_id);
                 {
                     let div_id = div_id.clone();
-                    create_effect(move |_| {
+                    Effect::new(move |_| {
                         let max_history = max_history.get();
                         let mut plot = plot_gpu(&sys_util_history.get(), max_history, gpu_id);
                         let y_ticks = vec![0.0, 20.0, 40.0, 60.0, 80.0, 100.0];
@@ -316,7 +316,7 @@ fn PlotDiskMini(
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-disk";
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let mut plot = plot_disk(&sys_util_history.get(), max_history.get());
 
         let x_axis = Axis::new()
@@ -340,7 +340,7 @@ fn PlotNetworkMini(
     max_history: ReadSignal<usize>,
 ) -> impl IntoView {
     let div_id = "side-network";
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let mut plot = plot_network(&sys_util_history.get(), max_history.get());
 
         let x_axis = Axis::new()
@@ -521,7 +521,7 @@ fn MainPanel(
 ) -> impl IntoView {
     let div_id = "main-view";
 
-    let sys_util_history_sampled: Signal<_> = {
+    let sys_util_history_sampled = Signal::derive({
         move || {
             let history_time = history_time.get();
             let sys_util_history = sys_util_history.get();
@@ -585,10 +585,9 @@ fn MainPanel(
                     .collect::<Vec<_>>()
             }
         }
-    }
-    .into();
+    });
 
-    create_effect(move |_| {
+    Effect::new(move |_| {
         let binding = sys_util_history.get();
         let sys_util_history = binding.iter().rev().take(history_time.get());
         let sys_util_history_sampled = sys_util_history_sampled.get();
@@ -802,7 +801,7 @@ pub fn App() -> impl IntoView {
     push_stats(sys_util_history.write_only(), update_interval);
 
     const X_AXIS_LEN_STATIC: usize = TIME_OPTIONS[0] as usize;
-    let sys_util_history_side_panel = {
+    let sys_util_history_side_panel = Signal::derive({
         move || {
             sys_util_history
                 .get()
@@ -813,8 +812,7 @@ pub fn App() -> impl IntoView {
                 .cloned()
                 .collect()
         }
-    }
-    .into();
+    });
 
     let (x_axis_points_static, _) = RwSignal::new(X_AXIS_LEN_STATIC).split();
 
