@@ -28,7 +28,7 @@ impl SystemMonitorState {
     fn new() -> Self {
         Self(Mutex::new(SystemMonitor::new()))
     }
-    fn get_state(&self) -> SystemMonitorStateResult {
+    fn get_state(&self) -> SystemMonitorStateResult<'_> {
         self.0.lock()
     }
 }
