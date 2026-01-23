@@ -13,7 +13,7 @@ serde-wasm-bindgen = "0.6"
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-plotly = { version = "0.13.0" }
+plotly = { version = "0.14.0" }
 const_format = "0.2.32"
 
 [workspace]
